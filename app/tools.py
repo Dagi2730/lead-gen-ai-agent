@@ -1,23 +1,33 @@
 from langchain_core.tools import tool
 import requests
 from bs4 import BeautifulSoup
+from duckduckgo_search import DDGS
 
 @tool
 def search_companies(query: str) -> str:
-    """Search the web for companies matching a specific query and location."""
-    return f"Found mock company search results for query: {query}. Companies include Apex Software Solutions, ByteCraft Tech, and Modern Cloud Group."
+    """Search the live web for companies matching a specific query and location using DuckDuckGo."""
+    try:
+        results = []
+        with DDGS() as ddgs:
+            for r in ddgs.text(query, max_results=5):
+                results.append(f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}\n")
+        if not results:
+            return "No live companies found for this query."
+        return "\n---|\n".join(results)
+    except Exception as e:
+        return f"Error executing web search: {str(e)}"
 
 @tool
 def scrape_company_website(url: str) -> str:
-    """Scrapes raw text content from a company website to analyze their tech stack or offerings."""
+    """Scrapes raw text content from a live company website URL to analyze their offerings and gaps."""
     try:
-        response = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+        response = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            for script in soup(["script", "style"]):
+            for script in soup(["script", "style", "nav", "footer"]):
                 script.decompose()
             text = soup.get_text(separator=' ', strip=True)
-            return text[:2000]
-        return "Could not retrieve website content."
+            return text[:2000] # Return first 2000 characters for LLM processing
+        return f"Could not retrieve content, status code: {response.status_code}"
     except Exception as e:
         return f"Error scraping website: {str(e)}"
