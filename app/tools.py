@@ -9,6 +9,7 @@ def search_companies(query: str, max_results: int = 25) -> str:
     try:
         results = []
         with DDGS() as ddgs:
+            # Dynamically use the passed max_results parameter instead of hardcoding 5
             for r in ddgs.text(query, max_results=max_results):
                 results.append(f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}\n")
         if not results:
@@ -27,7 +28,7 @@ def scrape_company_website(url: str) -> str:
             for script in soup(["script", "style", "nav", "footer"]):
                 script.decompose()
             text = soup.get_text(separator=' ', strip=True)
-            return text[:2000] # Return first 2000 characters for LLM processing
+            return text[:2000]
         return f"Could not retrieve content, status code: {response.status_code}"
     except Exception as e:
         return f"Error scraping website: {str(e)}"
