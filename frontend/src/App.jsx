@@ -3,7 +3,7 @@ import {
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, BarChart3, TrendingUp, Award, Layers, MessageSquareText, ClipboardList
+  Trash2, Mail, Phone, BarChart3, TrendingUp, Award, Layers, MessageSquareText, ClipboardList
 } from 'lucide-react';
 
 function App() {
@@ -94,6 +94,8 @@ function App() {
           id: idx + 1,
           company_name: lead.company_name,
           website: lead.website,
+          email: lead.email || 'N/A',
+          phone: lead.phone || 'N/A',
           location: location,
           icp_fit_score: lead.icp_fit_score,
           detected_issues: ["Needs deeper website audit", "Conversion bottleneck"],
@@ -165,6 +167,8 @@ function App() {
     selectedLeadObjects.forEach((lead, index) => {
       markdownOutput += `### ${index + 1}. ${lead.company_name}\n`;
       markdownOutput += `- **Website:** ${lead.website}\n`;
+      markdownOutput += `- **Email:** ${lead.email}\n`;
+      markdownOutput += `- **Phone:** ${lead.phone}\n`;
       markdownOutput += `- **Location:** ${lead.location}\n`;
       markdownOutput += `- **ICP Score:** ${lead.icp_fit_score}/10\n`;
       markdownOutput += `- **AI Insight:** ${lead.ai_insight}\n\n`;
@@ -179,16 +183,18 @@ function App() {
     setTimeout(() => setGlobalCopied(false), 2500);
   };
 
-  // Function to export leads to CSV
+  // Function to export leads to CSV with Email and Phone columns
   const handleExportCSV = () => {
     if (leads.length === 0) return;
 
-    const headers = ["Company Name", "Website", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
+    const headers = ["Company Name", "Website", "Email", "Phone", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
     const csvRows = [
       headers.join(","),
       ...leads.map(lead => [
         `"${lead.company_name}"`,
         `"${lead.website}"`,
+        `"${lead.email}"`,
+        `"${lead.phone}"`,
         `"${lead.location}"`,
         lead.icp_fit_score,
         `"${lead.ai_insight.replace(/"/g, '""')}"`,
@@ -543,9 +549,17 @@ function App() {
                             <h3 className="text-base font-bold text-[#1F2937]">{lead.company_name}</h3>
                             <span className="text-xs text-slate-400 font-medium">({lead.location})</span>
                           </div>
-                          <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-[#4F7DF3] hover:underline inline-flex items-center gap-1 mt-0.5 font-medium">
-                            {lead.website} <ExternalLink className="w-3 h-3" />
-                          </a>
+                          <div className="flex items-center gap-4 mt-1 flex-wrap">
+                            <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-[#4F7DF3] hover:underline inline-flex items-center gap-1 font-medium">
+                              {lead.website} <ExternalLink className="w-3 h-3" />
+                            </a>
+                            <span className="text-xs text-slate-500 inline-flex items-center gap-1">
+                              <Mail className="w-3 h-3 text-slate-400" /> {lead.email}
+                            </span>
+                            <span className="text-xs text-slate-500 inline-flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" /> {lead.phone}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -598,6 +612,8 @@ function App() {
                       </button>
                     </th>
                     <th className="p-4">Company Name</th>
+                    <th className="p-4">Email</th>
+                    <th className="p-4">Phone</th>
                     <th className="p-4">Location</th>
                     <th className="p-4">ICP Score</th>
                     <th className="p-4 text-right">Actions</th>
@@ -614,6 +630,8 @@ function App() {
                           </button>
                         </td>
                         <td className="p-4 font-bold text-[#1F2937]">{lead.company_name}</td>
+                        <td className="p-4 text-slate-600">{lead.email}</td>
+                        <td className="p-4 text-slate-600">{lead.phone}</td>
                         <td className="p-4 text-slate-600">{lead.location}</td>
                         <td className="p-4">
                           <span className="font-semibold text-[#22C55E] bg-[#22C55E]/10 px-2.5 py-1 rounded-full">
@@ -647,9 +665,13 @@ function App() {
               <div>
                 <span className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider">3-Step Cold Email Sequencer ({emailTone})</span>
                 <h2 className="text-xl font-bold text-[#1F2937] mt-0.5">{activeModalLead.company_name}</h2>
-                <a href={activeModalLead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-[#4F7DF3] inline-flex items-center gap-1 mt-1">
-                  {activeModalLead.website} <ExternalLink className="w-3 h-3" />
-                </a>
+                <div className="flex items-center gap-4 mt-1 flex-wrap">
+                  <a href={activeModalLead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-[#4F7DF3] inline-flex items-center gap-1">
+                    {activeModalLead.website} <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <span className="text-xs text-slate-600">Email: <strong>{activeModalLead.email}</strong></span>
+                  <span className="text-xs text-slate-600">Phone: <strong>{activeModalLead.phone}</strong></span>
+                </div>
               </div>
               <button onClick={() => setActiveModalLead(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
                 <X className="w-5 h-5" />
