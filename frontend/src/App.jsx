@@ -179,6 +179,33 @@ function App() {
     setTimeout(() => setGlobalCopied(false), 2500);
   };
 
+  // Function to export leads to CSV
+  const handleExportCSV = () => {
+    if (leads.length === 0) return;
+
+    const headers = ["Company Name", "Website", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
+    const csvRows = [
+      headers.join(","),
+      ...leads.map(lead => [
+        `"${lead.company_name}"`,
+        `"${lead.website}"`,
+        `"${lead.location}"`,
+        lead.icp_fit_score,
+        `"${lead.ai_insight.replace(/"/g, '""')}"`,
+        `"${lead.outreach_angle.replace(/"/g, '""')}"`
+      ].join(","))
+    ];
+
+    const blob = new Blob([csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `b2b_leads_${industry.replace(/\s+/g, '_') || 'export'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filteredLeads = leads
     .filter(lead => lead.icp_fit_score >= minScore)
     .sort((a, b) => {
@@ -473,8 +500,9 @@ function App() {
               </button>
 
               <button 
-                disabled={selectedLeads.length === 0}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors"
+                disabled={leads.length === 0}
+                onClick={handleExportCSV}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" /> Export to CSV
               </button>
