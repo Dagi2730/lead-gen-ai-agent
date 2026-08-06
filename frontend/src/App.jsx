@@ -3,32 +3,43 @@ import {
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock
+  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe
 } from 'lucide-react';
 
 function App() {
+  // Search & Filter State
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
   const [maxResults, setMaxResults] = useState(25);
   const [minScore, setMinScore] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('score');
+  
+  // Single Company Lookup State
+  const [singleCompanyQuery, setSingleCompanyQuery] = useState('');
+
+  // Global Tone Selector State
   const [emailTone, setEmailTone] = useState('Professional & Consultative');
 
+  // UI State
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState('cards');
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [activeModalLead, setActiveModalLead] = useState(null);
+  const [modalTone, setModalTone] = useState('Professional & Consultative');
   const [copiedId, setCopiedId] = useState(null);
   const [globalCopied, setGlobalCopied] = useState(false);
   const [error, setError] = useState('');
 
+  // History Drawer State
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Leads Data State
   const [leads, setLeads] = useState([]);
 
+  // Example Search Chips
   const exampleSearches = [
     { industry: "Marketing Agencies", location: "Austin, TX" },
     { industry: "SaaS Startups", location: "San Francisco, CA" },
@@ -40,24 +51,32 @@ function App() {
     setLocation(loc);
   };
 
+  // Expanded, longer, and deeply human-like cold email templates
   const generateSequenceForTone = (lead, tone) => {
     if (tone === 'Aggressive & Direct') {
       return {
-        step1: `Subject: Missing revenue at ${lead.company_name}\n\nHi team,\n\nI reviewed ${lead.website} and spotted an immediate conversion bottleneck. ${lead.suggested_outreach_angle}\n\nLet's fix this. Are you free for a 5-minute call this Thursday at 2 PM?`,
-        step2: `Subject: Re: Missing revenue at ${lead.company_name}\n\nChecking back in. Every day your current landing page setup runs without optimization, you're leaving pipeline on the table in ${location}.\n\nOpen to a quick review tomorrow?`,
-        step3: `Subject: Last try re: ${lead.company_name}\n\nAssuming scaling inbound is not a priority right now. I'll stop reaching out—best of luck with Q3!`
+        step1: `Subject: Quick question regarding ${lead.company_name}'s pipeline\n\nHi team,\n\nI was analyzing ${lead.website} earlier today and noticed a clear leak in your conversion funnel. Specifically, your inbound visitor journey lacks the friction reduction needed to maximize conversion rates.\n\n${lead.suggested_outreach_angle}\n\nWe typically help companies in ${lead.location || 'your market'} plug these revenue leaks within 14 days. Are you open to reviewing a 3-minute video breakdown of what I found? Let me know if Thursday at 2:00 PM works for a quick brief chat.`,
+        step2: `Subject: Re: Quick question regarding ${lead.company_name}'s pipeline\n\nHi again,\n\nFollowing up on my previous note. Every week ${lead.company_name} operates with this current setup, you are leaving high-intent prospects on the table.\n\nI ran a quick audit against top competitors in ${lead.location || 'your market'} and put together 3 actionable fixes you can implement immediately. \n\nAre you available this week for a 5-minute screen share to review them?`,
+        step3: `Subject: Closing the loop on ${lead.company_name}\n\nHi,\n\nI haven't heard back, so I'll assume optimizing inbound lead conversion isn't a current priority for ${lead.company_name}.\n\nThat's totally fine. I'll stop reaching out—wishing you and the team massive growth through Q3!`
       };
     } else if (tone === 'Casual & Friendly') {
       return {
-        step1: `Subject: Quick thought for ${lead.company_name} 🚀\n\nHey there,\n\nCame across ${lead.website} while looking at top ${industry} teams in ${location}. Love what you're building, but noticed one quick thing: ${lead.suggested_outreach_angle}\n\nWould love to share a quick idea if you're up for it!`,
-        step2: `Subject: Re: Quick thought for ${lead.company_name} 🚀\n\nHey again!\n\nJust bubbling this up in case it got buried. No pressure at all, but here's a 1-min loom breaking down what I found: [Link]`,
-        step3: `Subject: Catch you later / ${lead.company_name}\n\nHey, figured your inbox is swamped! I'll leave it here for now. If you ever want to chat growth down the road, I'm just a reply away.`
+        step1: `Subject: Stumbled across ${lead.company_name} 🚀\n\nHey there,\n\nI was doing some research on top teams in the ${industry || 'industry'} space and came across ${lead.website}. Really love what you guys are building over there!\n\nWhile clicking around, I noticed one little detail that caught my eye: ${lead.suggested_outreach_angle}\n\nI actually put together a quick, casual 2-minute Loom video breaking down an idea that could help boost engagement. Would you be open to me shooting that link over? No pressure at all!`,
+        step2: `Subject: Re: Stumbled across ${lead.company_name} 🚀\n\nHey again!\n\nJust bubbling this up in case it got buried under a mountain of emails. I know how hectic inboxes get!\n\nCurious if you had a chance to look at ${lead.website}'s current conversion flow? I'd love to chat about a super simple tweak that worked wonders for another team in ${lead.location || 'the area'}.\n\nLet me know if you're up for a quick coffee chat sometime next week!`,
+        step3: `Subject: Catch you later / ${lead.company_name}\n\nHey,\n\nFigured your inbox is totally swamped right now, so I'll leave it here! \n\nIf optimizing client acquisition ever bubbles back up to the top of your list down the road, you know where to find me. Have an awesome week ahead!`
+      };
+    } else if (tone === 'Executive & Formal') {
+      return {
+        step1: `Subject: Strategic optimization advisory for ${lead.company_name}\n\nDear Leadership Team at ${lead.company_name},\n\nI hope this email finds you well. In reviewing recent market dynamics across ${lead.location || 'the region'}, I observed notable opportunities for scaling digital infrastructure at ${lead.website}.\n\n${lead.suggested_outreach_angle}\n\nOur advisory practice specializes in assisting established enterprises with high-yield strategic alignment. Would you be amenable to a brief, 15-minute introductory dialogue next Tuesday or Wednesday to discuss potential synergies?`,
+        step2: `Subject: Re: Strategic optimization advisory for ${lead.company_name}\n\nDear team,\n\nWriting to follow up on my previous correspondence regarding operational efficiencies at ${lead.company_name}.\n\nWe have recently concluded a comprehensive benchmark study relevant to your sector. I would welcome the opportunity to share our executive summary findings with your leadership group.\n\nPlease let me know if an executive briefing next week would align with your calendar priorities.`,
+        step3: `Subject: Final outreach: Advisory services for ${lead.company_name}\n\nDear team,\n\nAs I have not received a response, I will conclude my outreach at this time. Should strategic growth initiatives become a focal point for ${lead.company_name} in future quarters, my professional inbox remains available.\n\nRespectfully yours.`
       };
     } else {
+      // Default: Professional & Consultative
       return {
-        step1: `Subject: Strategic growth ideas for ${lead.company_name}\n\nHi team,\n\nI was reviewing ${lead.website} and noticed an opportunity to enhance your digital conversion framework in ${location}. ${lead.suggested_outreach_angle}\n\nWould you be open to a brief 10-minute consultative chat this week?`,
-        step2: `Subject: Re: Strategic growth ideas for ${lead.company_name}\n\nHi again,\n\nJust bubbling this up. Most ${industry} leaders we speak with look to optimize initial prospect engagement. Here is a brief overview of our findings: [Link]\n\nWould this be of value to your team?`,
-        step3: `Subject: Closing the loop / ${lead.company_name}\n\nHi,\n\nI assume priorities have shifted. Should optimizing lead acquisition become a focus for ${lead.company_name} in the future, my inbox is always open.\n\nBest regards.`
+        step1: `Subject: Ideas for scaling ${lead.company_name}\n\nHi team,\n\nI was reviewing ${lead.website} recently and noticed a great opportunity to enhance your digital conversion framework in ${location || 'your region'}.\n\n${lead.suggested_outreach_angle}\n\nWe specialize in partnering with growth-focused teams to refine their client acquisition funnel. Would you be open to a brief 10-minute consultative chat this week to explore if there's a mutually beneficial fit?`,
+        step2: `Subject: Re: Ideas for scaling ${lead.company_name}\n\nHi again,\n\nJust following up on my previous note. Most leaders we speak with in ${industry || 'this sector'} are actively looking for ways to streamline prospect onboarding without increasing overhead.\n\nHere is a brief case study of how we approached a similar challenge: [Link]\n\nWould this perspective be of value to your team right now?`,
+        step3: `Subject: Closing the loop / ${lead.company_name}\n\nHi,\n\nI'm assuming priorities have shifted and this isn't top of mind right now. Should optimizing lead acquisition become a focus for ${lead.company_name} in the future, my inbox is always open.\n\nBest regards.`
       };
     }
   };
@@ -97,7 +116,6 @@ function App() {
           phone: lead.phone || 'N/A',
           location: sessionLocation,
           icp_fit_score: lead.icp_fit_score,
-          detected_issues: ["Needs deeper website audit", "Conversion bottleneck"],
           ai_insight: lead.qualification_reasoning,
           outreach_angle: lead.suggested_outreach_angle,
           full_analysis: lead.qualification_reasoning,
@@ -112,6 +130,55 @@ function App() {
       setShowHistory(false);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Feature 1: Single Company Lookup Handler
+  const handleSingleCompanySearch = async (e) => {
+    e.preventDefault();
+    if (!singleCompanyQuery.trim()) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/generate-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          industry: singleCompanyQuery,
+          location: location || "Global / Online",
+          max_results: 1,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Server returned status ${response.status}`);
+
+      const data = await response.json();
+      if (data.leads && data.leads.length > 0) {
+        const lead = data.leads[0];
+        const tempLead = {
+          id: Date.now(),
+          company_name: lead.company_name,
+          website: lead.website,
+          email: lead.email || 'N/A',
+          phone: lead.phone || 'N/A',
+          location: location || "Target Location",
+          icp_fit_score: lead.icp_fit_score,
+          ai_insight: lead.qualification_reasoning,
+          outreach_angle: lead.suggested_outreach_angle,
+          full_analysis: lead.qualification_reasoning,
+        };
+        const newLeadObj = {
+          ...tempLead,
+          email_sequence: generateSequenceForTone(tempLead, emailTone)
+        };
+        setLeads(prev => [newLeadObj, ...prev]);
+        setSingleCompanyQuery('');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to lookup single company.');
     } finally {
       setLoading(false);
     }
@@ -147,7 +214,6 @@ function App() {
           phone: lead.phone || 'N/A',
           location: location,
           icp_fit_score: lead.icp_fit_score,
-          detected_issues: ["Needs deeper website audit", "Conversion bottleneck"],
           ai_insight: lead.qualification_reasoning,
           outreach_angle: lead.suggested_outreach_angle,
           full_analysis: lead.qualification_reasoning,
@@ -176,8 +242,20 @@ function App() {
     }
   };
 
+  // Feature 2: Modal-Specific Tone Change Handler
+  const handleModalToneChange = (newTone) => {
+    setModalTone(newTone);
+    if (activeModalLead) {
+      const updatedSequence = generateSequenceForTone(activeModalLead, newTone);
+      setActiveModalLead(prev => ({
+        ...prev,
+        email_sequence: updatedSequence
+      }));
+    }
+  };
+
   const handleDeleteLead = (id, e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
     setLeads(leads.filter(l => l.id !== id));
     setSelectedLeads(selectedLeads.filter(selectedId => selectedId !== id));
     if (activeModalLead && activeModalLead.id === id) setActiveModalLead(null);
@@ -287,13 +365,32 @@ function App() {
         
         {/* Search Section */}
         <section className="bg-[#FFFFFF] border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-xs space-y-6">
-          <div className="max-w-2xl space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-[#1F2937]">
-              Autonomous Prospecting & Website Analysis
-            </h1>
-            <p className="text-sm text-slate-500">
-              Enter target criteria and quantity to discover live B2B leads enriched with customizable AI email sequences.
-            </p>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="max-w-xl space-y-1">
+              <h1 className="text-2xl font-bold tracking-tight text-[#1F2937]">
+                Autonomous Prospecting & Website Analysis
+              </h1>
+              <p className="text-sm text-slate-500">
+                Enter target criteria and quantity to discover live B2B leads enriched with customizable AI email sequences.
+              </p>
+            </div>
+
+            {/* Feature 1: Single Company Lookup Bar */}
+            <form onSubmit={handleSingleCompanySearch} className="flex items-center gap-2 bg-[#F5F7FA] p-1.5 rounded-xl border border-slate-200">
+              <div className="relative flex-1">
+                <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={singleCompanyQuery}
+                  onChange={(e) => setSingleCompanyQuery(e.target.value)}
+                  placeholder="Lookup specific company..."
+                  className="bg-transparent text-xs pl-9 pr-3 py-2 focus:outline-none w-44 md:w-52 text-[#1F2937]"
+                />
+              </div>
+              <button type="submit" disabled={loading} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg transition-colors cursor-pointer">
+                Lookup
+              </button>
+            </form>
           </div>
 
           <form onSubmit={handleGenerateLeads} className="space-y-4">
@@ -349,15 +446,15 @@ function App() {
             <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <MessageSquareText className="w-4 h-4 text-[#4F7DF3]" />
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">AI Email Tone:</span>
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Default AI Email Tone:</span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                {['Professional & Consultative', 'Aggressive & Direct', 'Casual & Friendly'].map((tone) => (
+                {['Professional & Consultative', 'Aggressive & Direct', 'Casual & Friendly', 'Executive & Formal'].map((tone) => (
                   <button
                     key={tone}
                     type="button"
                     onClick={() => handleToneChange(tone)}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${emailTone === tone ? 'bg-[#4F7DF3] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${emailTone === tone ? 'bg-[#4F7DF3] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 cursor-pointer'}`}
                   >
                     {tone}
                   </button>
@@ -370,7 +467,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => setShowFilters(!showFilters)}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#4F7DF3] bg-[#F5F7FA] px-3.5 py-2 rounded-xl border border-slate-200 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#4F7DF3] bg-[#F5F7FA] px-3.5 py-2 rounded-xl border border-slate-200 transition-colors cursor-pointer"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" /> {showFilters ? "Hide Filters" : "Advanced Filters"}
                 </button>
@@ -453,13 +550,13 @@ function App() {
               <div className="flex items-center bg-[#FFFFFF] border border-slate-200 rounded-xl p-1 shadow-xs">
                 <button
                   onClick={() => setViewMode('cards')}
-                  className={`p-1.5 rounded-lg text-xs transition-colors ${viewMode === 'cards' ? 'bg-[#F5F7FA] text-[#4F7DF3] font-bold shadow-xs' : 'text-slate-500'}`}
+                  className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${viewMode === 'cards' ? 'bg-[#F5F7FA] text-[#4F7DF3] font-bold shadow-xs' : 'text-slate-500'}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-lg text-xs transition-colors ${viewMode === 'table' ? 'bg-[#F5F7FA] text-[#4F7DF3] font-bold shadow-xs' : 'text-slate-500'}`}
+                  className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${viewMode === 'table' ? 'bg-[#F5F7FA] text-[#4F7DF3] font-bold shadow-xs' : 'text-slate-500'}`}
                 >
                   <TableIcon className="w-4 h-4" />
                 </button>
@@ -528,7 +625,7 @@ function App() {
                     </div>
                     <div className="bg-blue-50/50 p-4 rounded-xl border border-[#4F7DF3]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1 flex-1">
-                        <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook ({emailTone})</span>
+                        <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook</span>
                         <p className="text-xs text-[#1F2937] italic">"{lead.outreach_angle}"</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -536,7 +633,7 @@ function App() {
                           {copiedId === lead.id ? <Check className="w-3.5 h-3.5 text-[#22C55E]" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
                           {copiedId === lead.id ? "Copied" : "Copy Hook"}
                         </button>
-                        <button onClick={() => setActiveModalLead(lead)} className="inline-flex items-center gap-1 text-xs font-semibold bg-[#4F7DF3] text-white px-3.5 py-1.5 rounded-lg shadow-xs cursor-pointer">
+                        <button onClick={() => { setActiveModalLead(lead); setModalTone(emailTone); }} className="inline-flex items-center gap-1 text-xs font-semibold bg-[#4F7DF3] text-white px-3.5 py-1.5 rounded-lg shadow-xs cursor-pointer">
                           <Mail className="w-3.5 h-3.5" /> Sequencer & Details <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -583,7 +680,7 @@ function App() {
                           </span>
                         </td>
                         <td className="p-4 text-right space-x-2">
-                          <button onClick={() => setActiveModalLead(lead)} className="text-[#4F7DF3] font-semibold hover:underline cursor-pointer">View</button>
+                          <button onClick={() => { setActiveModalLead(lead); setModalTone(emailTone); }} className="text-[#4F7DF3] font-semibold hover:underline cursor-pointer">View</button>
                           <button onClick={(e) => handleDeleteLead(lead.id, e)} className="text-rose-600 hover:text-rose-800 font-semibold cursor-pointer">Delete</button>
                         </td>
                       </tr>
@@ -596,13 +693,13 @@ function App() {
         </section>
       </main>
 
-      {/* Modal */}
+      {/* Modal with Feature 2: Per-Lead Tone Selector */}
       {activeModalLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FFFFFF] border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 md:p-8 space-y-6">
-            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-slate-100 pb-4 gap-4">
               <div>
-                <span className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider">3-Step Cold Email Sequencer ({emailTone})</span>
+                <span className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider">3-Step Cold Email Sequencer</span>
                 <h2 className="text-xl font-bold text-[#1F2937] mt-0.5">{activeModalLead.company_name}</h2>
                 <div className="flex items-center gap-4 mt-1 flex-wrap">
                   <a href={activeModalLead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-[#4F7DF3] inline-flex items-center gap-1">
@@ -612,9 +709,24 @@ function App() {
                   <span className="text-xs text-slate-600">Phone: <strong>{activeModalLead.phone}</strong></span>
                 </div>
               </div>
-              <button onClick={() => setActiveModalLead(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
+
+              {/* Feature 2: Dropdown tone switcher inside modal */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">Tone:</span>
+                <select 
+                  value={modalTone} 
+                  onChange={(e) => handleModalToneChange(e.target.value)}
+                  className="bg-slate-100 border border-slate-200 text-xs font-semibold text-[#1F2937] rounded-xl px-3 py-2 focus:outline-none cursor-pointer"
+                >
+                  <option value="Professional & Consultative">Professional & Consultative</option>
+                  <option value="Aggressive & Direct">Aggressive & Direct</option>
+                  <option value="Casual & Friendly">Casual & Friendly</option>
+                  <option value="Executive & Formal">Executive & Formal</option>
+                </select>
+                <button onClick={() => setActiveModalLead(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer ml-2">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-6 text-sm">
@@ -627,7 +739,7 @@ function App() {
 
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider flex items-center gap-1.5">
-                  <Mail className="w-4 h-4" /> Tailored 3-Step Outreach Sequence
+                  <Mail className="w-4 h-4" /> Tailored 3-Step Outreach Sequence ({modalTone})
                 </h4>
 
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
@@ -638,7 +750,7 @@ function App() {
                       {copiedId === 'step1' ? "Copied" : "Copy Email"}
                     </button>
                   </div>
-                  <textarea defaultValue={activeModalLead.email_sequence.step1} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono" />
+                  <textarea defaultValue={activeModalLead.email_sequence.step1} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-36 leading-relaxed resize-none font-mono" />
                 </div>
 
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
@@ -649,7 +761,7 @@ function App() {
                       {copiedId === 'step2' ? "Copied" : "Copy Email"}
                     </button>
                   </div>
-                  <textarea defaultValue={activeModalLead.email_sequence.step2} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono" />
+                  <textarea defaultValue={activeModalLead.email_sequence.step2} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-36 leading-relaxed resize-none font-mono" />
                 </div>
 
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
@@ -660,13 +772,13 @@ function App() {
                       {copiedId === 'step3' ? "Copied" : "Copy Email"}
                     </button>
                   </div>
-                  <textarea defaultValue={activeModalLead.email_sequence.step3} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono" />
+                  <textarea defaultValue={activeModalLead.email_sequence.step3} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-36 leading-relaxed resize-none font-mono" />
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <button onClick={(e) => { handleDeleteLead(activeModalLead.id, e); }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200 transition-colors cursor-pointer">
+              <button onClick={(e) => { handleDeleteLead(activeModalLead.id, e); setActiveModalLead(null); }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200 transition-colors cursor-pointer">
                 <Trash2 className="w-3.5 h-3.5" /> Delete Lead
               </button>
               <button onClick={() => setActiveModalLead(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
