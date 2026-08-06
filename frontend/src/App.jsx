@@ -3,17 +3,20 @@ import {
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, BarChart3, TrendingUp, Award, Layers
+  Trash2, Mail, BarChart3, TrendingUp, Award, Layers, MessageSquareText, ClipboardList
 } from 'lucide-react';
 
 function App() {
   // Search & Filter State
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
-  const [maxResults, setMaxResults] = useState(3);
+  const [maxResults, setMaxResults] = useState(25); // Default to a flexible batch size
   const [minScore, setMinScore] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('score');
+  
+  // Tone Selector State
+  const [emailTone, setEmailTone] = useState('Professional & Consultative');
 
   // UI State
   const [loading, setLoading] = useState(false);
@@ -21,6 +24,7 @@ function App() {
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [activeModalLead, setActiveModalLead] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [globalCopied, setGlobalCopied] = useState(false);
   const [error, setError] = useState('');
 
   // Leads Data State
@@ -36,6 +40,28 @@ function App() {
   const handleSearchTrigger = (ind, loc) => {
     setIndustry(ind);
     setLocation(loc);
+  };
+
+  const generateSequenceForTone = (lead, tone) => {
+    if (tone === 'Aggressive & Direct') {
+      return {
+        step1: `Subject: Missing revenue at ${lead.company_name}\n\nHi team,\n\nI reviewed ${lead.website} and spotted an immediate conversion bottleneck. ${lead.suggested_outreach_angle}\n\nLet's fix this. Are you free for a 5-minute call this Thursday at 2 PM?`,
+        step2: `Subject: Re: Missing revenue at ${lead.company_name}\n\nChecking back in. Every day your current landing page setup runs without optimization, you're leaving pipeline on the table in ${location}.\n\nOpen to a quick review tomorrow?`,
+        step3: `Subject: Last try re: ${lead.company_name}\n\nAssuming scaling inbound is not a priority right now. I'll stop reaching out—best of luck with Q3!`
+      };
+    } else if (tone === 'Casual & Friendly') {
+      return {
+        step1: `Subject: Quick thought for ${lead.company_name} 🚀\n\nHey there,\n\nCame across ${lead.website} while looking at top ${industry} teams in ${location}. Love what you're building, but noticed one quick thing: ${lead.suggested_outreach_angle}\n\nWould love to share a quick idea if you're up for it!`,
+        step2: `Subject: Re: Quick thought for ${lead.company_name} 🚀\n\nHey again!\n\nJust bubbling this up in case it got buried. No pressure at all, but here's a 1-min loom breaking down what I found: [Link]`,
+        step3: `Subject: Catch you later / ${lead.company_name}\n\nHey, figured your inbox is swamped! I'll leave it here for now. If you ever want to chat growth down the road, I'm just a reply away.`
+      };
+    } else {
+      return {
+        step1: `Subject: Strategic growth ideas for ${lead.company_name}\n\nHi team,\n\nI was reviewing ${lead.website} and noticed an opportunity to enhance your digital conversion framework in ${location}. ${lead.suggested_outreach_angle}\n\nWould you be open to a brief 10-minute consultative chat this week?`,
+        step2: `Subject: Re: Strategic growth ideas for ${lead.company_name}\n\nHi again,\n\nJust bubbling this up. Most ${industry} leaders we speak with look to optimize initial prospect engagement. Here is a brief overview of our findings: [Link]\n\nWould this be of value to your team?`,
+        step3: `Subject: Closing the loop / ${lead.company_name}\n\nHi,\n\nI assume priorities have shifted. Should optimizing lead acquisition become a focus for ${lead.company_name} in the future, my inbox is always open.\n\nBest regards.`
+      };
+    }
   };
 
   const handleGenerateLeads = async (e) => {
@@ -54,7 +80,7 @@ function App() {
         body: JSON.stringify({
           industry,
           location,
-          max_results: parseInt(maxResults, 10),
+          max_results: parseInt(maxResults, 10) || 10,
         }),
       });
 
@@ -63,29 +89,39 @@ function App() {
       }
 
       const data = await response.json();
-      const formattedLeads = (data.leads || []).map((lead, idx) => ({
-        id: idx + 1,
-        company_name: lead.company_name,
-        website: lead.website,
-        location: location,
-        icp_fit_score: lead.icp_fit_score,
-        detected_issues: ["Needs deeper website audit", "Conversion bottleneck"],
-        ai_insight: lead.qualification_reasoning,
-        outreach_angle: lead.suggested_outreach_angle,
-        full_analysis: lead.qualification_reasoning,
-        // 3-Step Cold Email Sequencer generated dynamically from AI angle
-        email_sequence: {
-          step1: `Subject: Quick question about ${lead.company_name}'s growth in ${location}\n\nHi team,\n\nI was reviewing ${lead.website} and noticed an opportunity to accelerate your inbound pipeline. ${lead.suggested_outreach_angle}\n\nWould you be open to a brief 10-minute chat this week?`,
-          step2: `Subject: Re: Quick question about ${lead.company_name}\n\nHi again,\n\nJust bubbling this up. Most ${industry} leaders we speak with in ${location} struggle with initial conversion friction. Here is a quick teardown of how we solved this for a similar firm: [Link]\n\nWorth a look?`,
-          step3: `Subject: Closing the loop / ${lead.company_name}\n\nHi,\n\nI assume priorities have shifted over at ${lead.company_name}. If you're ever looking to optimize your lead generation workflow down the road, my inbox is always open.\n\nBest of luck!`
-        }
-      }));
+      const formattedLeads = (data.leads || []).map((lead, idx) => {
+        const tempLead = {
+          id: idx + 1,
+          company_name: lead.company_name,
+          website: lead.website,
+          location: location,
+          icp_fit_score: lead.icp_fit_score,
+          detected_issues: ["Needs deeper website audit", "Conversion bottleneck"],
+          ai_insight: lead.qualification_reasoning,
+          outreach_angle: lead.suggested_outreach_angle,
+          full_analysis: lead.qualification_reasoning,
+        };
+        return {
+          ...tempLead,
+          email_sequence: generateSequenceForTone(tempLead, emailTone)
+        };
+      });
 
       setLeads(formattedLeads);
     } catch (err) {
       setError(err.message || 'Failed to connect to backend server.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToneChange = (newTone) => {
+    setEmailTone(newTone);
+    if (leads.length > 0) {
+      setLeads(leads.map(l => ({
+        ...l,
+        email_sequence: generateSequenceForTone(l, newTone)
+      })));
     }
   };
 
@@ -120,6 +156,29 @@ function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleCopyAllSelected = () => {
+    const selectedLeadObjects = leads.filter(l => selectedLeads.includes(l.id));
+    if (selectedLeadObjects.length === 0) return;
+
+    let markdownOutput = `# Selected B2B Prospecting Leads (${selectedLeadObjects.length})\nGenerated with LeadGen AI\n\n---\n\n`;
+
+    selectedLeadObjects.forEach((lead, index) => {
+      markdownOutput += `### ${index + 1}. ${lead.company_name}\n`;
+      markdownOutput += `- **Website:** ${lead.website}\n`;
+      markdownOutput += `- **Location:** ${lead.location}\n`;
+      markdownOutput += `- **ICP Score:** ${lead.icp_fit_score}/10\n`;
+      markdownOutput += `- **AI Insight:** ${lead.ai_insight}\n\n`;
+      markdownOutput += `#### Cold Email Sequence (${emailTone})\n`;
+      markdownOutput += `**Step 1:**\n\`\`\`\n${lead.email_sequence.step1}\n\`\`\`\n\n`;
+      markdownOutput += `**Step 2:**\n\`\`\`\n${lead.email_sequence.step2}\n\`\`\`\n\n`;
+      markdownOutput += `**Step 3:**\n\`\`\`\n${lead.email_sequence.step3}\n\`\`\`\n\n---\n\n`;
+    });
+
+    navigator.clipboard.writeText(markdownOutput);
+    setGlobalCopied(true);
+    setTimeout(() => setGlobalCopied(false), 2500);
+  };
+
   const filteredLeads = leads
     .filter(lead => lead.icp_fit_score >= minScore)
     .sort((a, b) => {
@@ -128,7 +187,6 @@ function App() {
       return 0;
     });
 
-  // Analytics Metrics Calculation
   const totalScanned = leads.length;
   const avgScore = totalScanned > 0 ? (leads.reduce((acc, l) => acc + l.icp_fit_score, 0) / totalScanned).toFixed(1) : 0;
   const highOpportunities = leads.filter(l => l.icp_fit_score >= 8.0).length;
@@ -164,7 +222,7 @@ function App() {
               Autonomous Prospecting & Website Analysis
             </h1>
             <p className="text-sm text-slate-500">
-              Enter target criteria to discover, score, and enrich live B2B leads with customized outreach hooks and automated sequences.
+              Enter target criteria and quantity to discover live B2B leads enriched with customizable AI email sequences.
             </p>
           </div>
 
@@ -205,21 +263,46 @@ function App() {
                 </div>
               </div>
 
+              {/* Customizable Number of Leads Input */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Max Leads
+                  Number of Leads
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={maxResults}
-                  onChange={(e) => setMaxResults(e.target.value)}
-                  className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
-                  required
-                />
+                <div className="relative">
+                  <Target className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={maxResults}
+                    onChange={(e) => setMaxResults(e.target.value)}
+                    placeholder="e.g. 50, 100, 1000"
+                    className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
+                    required
+                  />
+                </div>
               </div>
 
+            </div>
+
+            {/* AI Custom Tone Selector */}
+            <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="w-4 h-4 text-[#4F7DF3]" />
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">AI Email Tone:</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {['Professional & Consultative', 'Aggressive & Direct', 'Casual & Friendly'].map((tone) => (
+                  <button
+                    key={tone}
+                    type="button"
+                    onClick={() => handleToneChange(tone)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${emailTone === tone ? 'bg-[#4F7DF3] text-white shadow-xs' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                  >
+                    {tone}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-between pt-2 gap-4">
@@ -255,11 +338,11 @@ function App() {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Scraping & Enriching...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Scraping {maxResults} Leads...
                   </>
                 ) : (
                   <>
-                    <Search className="w-4 h-4" /> Search Leads
+                    <Search className="w-4 h-4" /> Search {maxResults || 0} Leads
                   </>
                 )}
               </button>
@@ -290,7 +373,7 @@ function App() {
           </div>
         )}
 
-        {/* 4. Interactive Analytics & Prospecting Metrics Header */}
+        {/* Analytics Metrics Header */}
         {leads.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fadeIn">
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
@@ -378,12 +461,24 @@ function App() {
               )}
               Select All ({selectedLeads.length} selected)
             </button>
-            <button 
-              disabled={selectedLeads.length === 0}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" /> Export to CSV
-            </button>
+            
+            <div className="flex items-center gap-2">
+              <button 
+                disabled={selectedLeads.length === 0}
+                onClick={handleCopyAllSelected}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4F7DF3] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 disabled:opacity-40 transition-colors"
+              >
+                {globalCopied ? <Check className="w-3.5 h-3.5 text-[#22C55E]" /> : <ClipboardList className="w-3.5 h-3.5" />}
+                {globalCopied ? "Copied All as Markdown!" : "Copy Selected Sequences"}
+              </button>
+
+              <button 
+                disabled={selectedLeads.length === 0}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" /> Export to CSV
+              </button>
+            </div>
           </div>
 
           {filteredLeads.length === 0 && !loading ? (
@@ -393,13 +488,13 @@ function App() {
               </div>
               <p className="text-slate-600 font-medium">No leads generated yet.</p>
               <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Enter your target industry and location above and click <strong>Search Leads</strong> to trigger your live AI backend agent.
+                Enter your target industry, location, and desired lead count above and click <strong>Search Leads</strong> to trigger your backend AI agent.
               </p>
             </div>
           ) : loading ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center space-y-4 shadow-xs">
               <Loader2 className="w-8 h-8 animate-spin text-[#4F7DF3] mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">Agent is searching websites and calculating ICP scores...</p>
+              <p className="text-sm font-semibold text-slate-700">Agent is querying search tools and scaling to return up to {maxResults} leads...</p>
             </div>
           ) : viewMode === 'cards' ? (
             <div className="grid grid-cols-1 gap-4">
@@ -430,7 +525,6 @@ function App() {
                         <span className="inline-flex items-center gap-1 bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20 text-xs px-3 py-1 rounded-full font-bold">
                           ICP Score: {lead.icp_fit_score}/10
                         </span>
-                        {/* Individual Delete Button */}
                         <button
                           onClick={(e) => handleDeleteLead(lead.id, e)}
                           className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
@@ -448,7 +542,7 @@ function App() {
 
                     <div className="bg-blue-50/50 p-4 rounded-xl border border-[#4F7DF3]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1 flex-1">
-                        <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook</span>
+                        <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook ({emailTone})</span>
                         <p className="text-xs text-[#1F2937] italic">"{lead.outreach_angle}"</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -517,13 +611,13 @@ function App() {
 
       </main>
 
-      {/* 1. One-Click Cold Email Generator & Sequencer Modal */}
+      {/* Modal */}
       {activeModalLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FFFFFF] border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 md:p-8 space-y-6">
             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
-                <span className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider">3-Step Cold Email Sequencer</span>
+                <span className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider">3-Step Cold Email Sequencer ({emailTone})</span>
                 <h2 className="text-xl font-bold text-[#1F2937] mt-0.5">{activeModalLead.company_name}</h2>
                 <a href={activeModalLead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-500 hover:text-[#4F7DF3] inline-flex items-center gap-1 mt-1">
                   {activeModalLead.website} <ExternalLink className="w-3 h-3" />
@@ -542,13 +636,11 @@ function App() {
                 </p>
               </div>
 
-              {/* 3-Step Email Sequence Tabs / Section */}
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-[#4F7DF3] uppercase tracking-wider flex items-center gap-1.5">
                   <Mail className="w-4 h-4" /> Tailored 3-Step Outreach Sequence
                 </h4>
 
-                {/* Step 1 */}
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 1: Initial Cold Outreach</span>
@@ -566,7 +658,6 @@ function App() {
                   />
                 </div>
 
-                {/* Step 2 */}
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 2: Value-Add Follow-Up (Day 3)</span>
@@ -584,7 +675,6 @@ function App() {
                   />
                 </div>
 
-                {/* Step 3 */}
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 3: Breaking the Ice / Breakup Email (Day 7)</span>
