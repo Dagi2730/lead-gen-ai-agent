@@ -3,7 +3,7 @@ import {
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle
+  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send
 } from 'lucide-react';
 
 function App() {
@@ -33,17 +33,6 @@ function App() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [leads, setLeads] = useState([]);
-
-  const exampleSearches = [
-    { industry: "Marketing Agencies", location: "Austin, TX" },
-    { industry: "SaaS Startups", location: "San Francisco, CA" },
-    { industry: "Dental Clinics", location: "Chicago, IL" }
-  ];
-
-  const handleSearchTrigger = (ind, loc) => {
-    setIndustry(ind);
-    setLocation(loc);
-  };
 
   const generateSequenceForTone = (lead, tone) => {
     if (tone === 'Aggressive & Direct') {
@@ -145,7 +134,6 @@ function App() {
     }
   };
 
-  // Feature 1: Regenerate Hook Handler
   const handleRegenerateHook = async (leadId, e) => {
     e.stopPropagation();
     const lead = leads.find(l => l.id === leadId);
@@ -186,7 +174,21 @@ function App() {
     }
   };
 
-  // Feature 2: Bulk Status Tagging
+  // Direct Email Sending Handler (Mailto link)
+  const handleDirectEmailSend = (email, emailContent) => {
+    if (!email || email === 'N/A') {
+      alert("No valid email address available for this lead.");
+      return;
+    }
+    const lines = emailContent.split('\n');
+    const subjectLine = lines.find(l => l.startsWith('Subject:')) ? lines.find(l => l.startsWith('Subject:')).replace('Subject:', '').trim() : 'Outreach from LeadGen AI';
+    const bodyLines = lines.filter(l => !l.startsWith('Subject:'));
+    const bodyText = bodyLines.join('\n').trim();
+
+    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subjectLine)}&body=${encodeURIComponent(bodyText)}`;
+    window.location.href = mailtoUrl;
+  };
+
   const handleBulkStatusChange = (newStatus) => {
     if (selectedLeads.length === 0) return;
     setLeads(prev => prev.map(l => {
@@ -647,7 +649,6 @@ function App() {
               Select All ({selectedLeads.length} selected)
             </button>
 
-            {/* Feature 2: Bulk Actions Toolbar */}
             {selectedLeads.length > 0 && (
               <div className="flex items-center gap-2 animate-fadeIn flex-wrap">
                 <span className="text-xs font-bold text-slate-500 flex items-center gap-1"><Tag className="w-3 h-3" /> Set Status:</span>
@@ -695,7 +696,7 @@ function App() {
               {filteredLeads.map((lead) => {
                 const isSelected = selectedLeads.includes(lead.id);
                 return (
-                  <div key={lead.id} className={`bg-[#FFFFFF] border rounded-2xl p-6 shadow-xs transition-all space-y-4 ${isSelected ? 'border-[#4F7DF3] ring-1 ring-[#4F7DF3]/25' : 'border-slate-200'}`}>
+                  <div key={lead.id} className={`bg-[#FFFFFF] border rounded-2xl p-6 shadow-xs transition-all space-y-4 relative ${isSelected ? 'border-[#4F7DF3] ring-1 ring-[#4F7DF3]/25' : 'border-slate-200'}`}>
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
                         <button onClick={() => toggleSelectLead(lead.id)} className="mt-1 text-slate-400 hover:text-[#4F7DF3] cursor-pointer">
@@ -706,13 +707,11 @@ function App() {
                             <h3 className="text-base font-bold text-[#1F2937]">{lead.company_name}</h3>
                             <span className="text-xs text-slate-400 font-medium">({lead.location})</span>
                             
-                            {/* Feature 3: Confidence Indicator Badge */}
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 ${lead.confidence === 'Verified' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-blue-600 border border-blue-200'}`}>
                               {lead.confidence === 'Verified' ? <ShieldCheck className="w-3 h-3" /> : <Sparkle className="w-3 h-3" />}
                               {lead.confidence}
                             </span>
 
-                            {/* Status Tag Badge */}
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                               lead.status === 'Contacted' ? 'bg-purple-50 text-purple-600 border border-purple-200' :
                               lead.status === 'Follow Up' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
@@ -735,6 +734,7 @@ function App() {
                         <span className="inline-flex items-center gap-1 bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20 text-xs px-3 py-1 rounded-full font-bold">
                           ICP Score: {lead.icp_fit_score}/10
                         </span>
+
                         <button onClick={(e) => handleDeleteLead(lead.id, e)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Delete Lead">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -755,7 +755,6 @@ function App() {
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook</span>
                           
-                          {/* Feature 1: Regenerate Hook Button */}
                           <button 
                             disabled={regeneratingId === lead.id}
                             onClick={(e) => handleRegenerateHook(lead.id, e)}
@@ -844,7 +843,7 @@ function App() {
         </section>
       </main>
 
-      {/* Modal with Controlled Sequence State */}
+      {/* Modal with Direct Email Send Button */}
       {activeModalLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FFFFFF] border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 md:p-8 space-y-6">
@@ -902,10 +901,15 @@ function App() {
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 1: Initial Cold Outreach</span>
-                    <button onClick={() => copyToClipboard(modalSequence.step1, 'step1')} className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer">
-                      {copiedId === 'step1' ? <Check className="w-3 h-3 text-[#22C55E]" /> : <Copy className="w-3 h-3" />}
-                      {copiedId === 'step1' ? "Copied" : "Copy Email"}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => handleDirectEmailSend(activeModalLead.email, modalSequence.step1)} className="text-xs text-emerald-600 font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer">
+                        <Send className="w-3 h-3" /> Send Email (Mailto)
+                      </button>
+                      <button onClick={() => copyToClipboard(modalSequence.step1, 'step1')} className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer">
+                        {copiedId === 'step1' ? <Check className="w-3 h-3 text-[#22C55E]" /> : <Copy className="w-3 h-3" />}
+                        {copiedId === 'step1' ? "Copied" : "Copy"}
+                      </button>
+                    </div>
                   </div>
                   <textarea 
                     value={modalSequence.step1} 
@@ -972,39 +976,33 @@ function App() {
                 </button>
               </div>
 
-              {loadingHistory ? (
-                <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#4F7DF3] mx-auto" /></div>
-              ) : historyList.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-12">No saved search sessions found in database.</p>
-              ) : (
-                <div className="space-y-3">
-                  {historyList.map((item) => (
-                    <div 
-                      key={item.session_id}
-                      onClick={() => handleLoadSession(item.session_id, item.industry, item.location)}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-[#4F7DF3] hover:bg-blue-50/20 transition-all cursor-pointer space-y-2 relative group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-[#1F2937]">{item.industry}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold bg-emerald-50 text-[#22C55E] px-2 py-0.5 rounded-full">{item.total_leads} Leads</span>
-                          <button 
-                            onClick={(e) => handleDeleteHistorySession(item.session_id, e)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors cursor-pointer"
-                            title="Delete Search History"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(item.created_at).toLocaleDateString()}</span>
+              <div className="space-y-3">
+                {historyList.map((item) => (
+                  <div 
+                    key={item.session_id}
+                    onClick={() => handleLoadSession(item.session_id, item.industry, item.location)}
+                    className="p-4 rounded-xl border border-slate-200 hover:border-[#4F7DF3] hover:bg-blue-50/20 transition-all cursor-pointer space-y-2 relative group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-[#1F2937]">{item.industry}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold bg-emerald-50 text-[#22C55E] px-2 py-0.5 rounded-full">{item.total_leads} Leads</span>
+                        <button 
+                          onClick={(e) => handleDeleteHistorySession(item.session_id, e)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors cursor-pointer"
+                          title="Delete Search History"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(item.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-400">
               Click any past search session to instantly reload leads from the database.
