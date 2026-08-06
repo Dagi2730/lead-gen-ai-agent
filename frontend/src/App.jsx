@@ -3,22 +3,18 @@ import {
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, Phone, BarChart3, TrendingUp, Award, Layers, MessageSquareText, ClipboardList
+  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock
 } from 'lucide-react';
 
 function App() {
-  // Search & Filter State
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
-  const [maxResults, setMaxResults] = useState(25); // Default to a flexible batch size
+  const [maxResults, setMaxResults] = useState(25);
   const [minScore, setMinScore] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('score');
-  
-  // Tone Selector State
   const [emailTone, setEmailTone] = useState('Professional & Consultative');
 
-  // UI State
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState('cards');
   const [selectedLeads, setSelectedLeads] = useState([]);
@@ -27,10 +23,12 @@ function App() {
   const [globalCopied, setGlobalCopied] = useState(false);
   const [error, setError] = useState('');
 
-  // Leads Data State
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   const [leads, setLeads] = useState([]);
 
-  // Example Search Chips
   const exampleSearches = [
     { industry: "Marketing Agencies", location: "Austin, TX" },
     { industry: "SaaS Startups", location: "San Francisco, CA" },
@@ -64,6 +62,61 @@ function App() {
     }
   };
 
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/history');
+      if (response.ok) {
+        const data = await response.json();
+        setHistoryList(data);
+      }
+    } catch (err) {
+      console.error("Failed to load history", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleLoadSession = async (sessionId, sessionIndustry, sessionLocation) => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/v1/history/${sessionId}`);
+      if (!response.ok) throw new Error("Failed to load session leads");
+      
+      const data = await response.json();
+      setIndustry(sessionIndustry);
+      setLocation(sessionLocation);
+
+      const formattedLeads = (data.leads || []).map((lead, idx) => {
+        const tempLead = {
+          id: idx + 1,
+          company_name: lead.company_name,
+          website: lead.website,
+          email: lead.email || 'N/A',
+          phone: lead.phone || 'N/A',
+          location: sessionLocation,
+          icp_fit_score: lead.icp_fit_score,
+          detected_issues: ["Needs deeper website audit", "Conversion bottleneck"],
+          ai_insight: lead.qualification_reasoning,
+          outreach_angle: lead.suggested_outreach_angle,
+          full_analysis: lead.qualification_reasoning,
+        };
+        return {
+          ...tempLead,
+          email_sequence: generateSequenceForTone(tempLead, emailTone)
+        };
+      });
+
+      setLeads(formattedLeads);
+      setShowHistory(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerateLeads = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -74,9 +127,7 @@ function App() {
     try {
       const response = await fetch('http://127.0.0.1:8000/api/v1/generate-leads', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           industry,
           location,
@@ -84,9 +135,7 @@ function App() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Server returned status ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Server returned status ${response.status}`);
 
       const data = await response.json();
       const formattedLeads = (data.leads || []).map((lead, idx) => {
@@ -131,9 +180,7 @@ function App() {
     e.stopPropagation();
     setLeads(leads.filter(l => l.id !== id));
     setSelectedLeads(selectedLeads.filter(selectedId => selectedId !== id));
-    if (activeModalLead && activeModalLead.id === id) {
-      setActiveModalLead(null);
-    }
+    if (activeModalLead && activeModalLead.id === id) setActiveModalLead(null);
   };
 
   const handleSelectAll = () => {
@@ -145,11 +192,7 @@ function App() {
   };
 
   const toggleSelectLead = (id) => {
-    if (selectedLeads.includes(id)) {
-      setSelectedLeads(selectedLeads.filter(item => item !== id));
-    } else {
-      setSelectedLeads([...selectedLeads, id]);
-    }
+    setSelectedLeads(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   };
 
   const copyToClipboard = (text, id) => {
@@ -163,19 +206,10 @@ function App() {
     if (selectedLeadObjects.length === 0) return;
 
     let markdownOutput = `# Selected B2B Prospecting Leads (${selectedLeadObjects.length})\nGenerated with LeadGen AI\n\n---\n\n`;
-
     selectedLeadObjects.forEach((lead, index) => {
       markdownOutput += `### ${index + 1}. ${lead.company_name}\n`;
-      markdownOutput += `- **Website:** ${lead.website}\n`;
-      markdownOutput += `- **Email:** ${lead.email}\n`;
-      markdownOutput += `- **Phone:** ${lead.phone}\n`;
-      markdownOutput += `- **Location:** ${lead.location}\n`;
-      markdownOutput += `- **ICP Score:** ${lead.icp_fit_score}/10\n`;
-      markdownOutput += `- **AI Insight:** ${lead.ai_insight}\n\n`;
-      markdownOutput += `#### Cold Email Sequence (${emailTone})\n`;
-      markdownOutput += `**Step 1:**\n\`\`\`\n${lead.email_sequence.step1}\n\`\`\`\n\n`;
-      markdownOutput += `**Step 2:**\n\`\`\`\n${lead.email_sequence.step2}\n\`\`\`\n\n`;
-      markdownOutput += `**Step 3:**\n\`\`\`\n${lead.email_sequence.step3}\n\`\`\`\n\n---\n\n`;
+      markdownOutput += `- **Website:** ${lead.website}\n- **Email:** ${lead.email}\n- **Phone:** ${lead.phone}\n`;
+      markdownOutput += `- **Location:** ${lead.location}\n- **ICP Score:** ${lead.icp_fit_score}/10\n- **AI Insight:** ${lead.ai_insight}\n\n`;
     });
 
     navigator.clipboard.writeText(markdownOutput);
@@ -183,7 +217,6 @@ function App() {
     setTimeout(() => setGlobalCopied(false), 2500);
   };
 
-  // Function to export leads to CSV with Email and Phone columns
   const handleExportCSV = () => {
     if (leads.length === 0) return;
 
@@ -236,13 +269,17 @@ function App() {
           </div>
           <span className="font-bold text-lg tracking-tight text-[#1F2937]">LeadGen AI</span>
         </div>
+
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-slate-600 px-3 py-1.5">
-            Saved Leads <span className="ml-1.5 px-2 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-700">{selectedLeads.length}</span>
+          <button 
+            onClick={() => { setShowHistory(true); fetchHistory(); }}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+          >
+            <History className="w-4 h-4 text-[#4F7DF3]" /> Search History
+          </button>
+          <span className="text-xs font-semibold text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+            Selected: <span className="text-[#4F7DF3] font-bold">{selectedLeads.length}</span>
           </span>
-          <div className="w-8 h-8 rounded-full bg-[#4F7DF3]/10 text-[#4F7DF3] font-bold text-xs flex items-center justify-center border border-[#4F7DF3]/20">
-            DA
-          </div>
         </div>
       </nav>
 
@@ -261,11 +298,8 @@ function App() {
 
           <form onSubmit={handleGenerateLeads} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Target Industry
-                </label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Target Industry</label>
                 <div className="relative">
                   <Building2 className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                   <input
@@ -280,9 +314,7 @@ function App() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Location
-                </label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Location</label>
                 <div className="relative">
                   <MapPin className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                   <input
@@ -296,11 +328,8 @@ function App() {
                 </div>
               </div>
 
-              {/* Customizable Number of Leads Input */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Number of Leads
-                </label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Number of Leads</label>
                 <div className="relative">
                   <Target className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                   <input
@@ -309,16 +338,14 @@ function App() {
                     max="1000"
                     value={maxResults}
                     onChange={(e) => setMaxResults(e.target.value)}
-                    placeholder="e.g. 50, 100, 1000"
                     className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
                     required
                   />
                 </div>
               </div>
-
             </div>
 
-            {/* AI Custom Tone Selector */}
+            {/* AI Tone Selector */}
             <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <MessageSquareText className="w-4 h-4 text-[#4F7DF3]" />
@@ -345,39 +372,16 @@ function App() {
                   onClick={() => setShowFilters(!showFilters)}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#4F7DF3] bg-[#F5F7FA] px-3.5 py-2 rounded-xl border border-slate-200 transition-colors"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  {showFilters ? "Hide Filters" : "Advanced Filters"}
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> {showFilters ? "Hide Filters" : "Advanced Filters"}
                 </button>
-
-                <div className="hidden lg:flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Try:</span>
-                  {exampleSearches.map((ex, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => handleSearchTrigger(ex.industry, ex.location)}
-                      className="text-xs bg-[#F5F7FA] hover:bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg border border-slate-200 transition-colors"
-                    >
-                      {ex.industry} in {ex.location}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full sm:w-auto bg-[#4F7DF3] hover:bg-[#3b68e0] text-white font-medium text-sm py-3 px-6 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full sm:w-auto bg-[#4F7DF3] hover:bg-[#3b68e0] text-white font-medium text-sm py-3 px-6 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Scraping {maxResults} Leads...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" /> Search {maxResults || 0} Leads
-                  </>
-                )}
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Scraping {maxResults} Leads...</> : <><Search className="w-4 h-4" /> Search {maxResults || 0} Leads</>}
               </button>
             </div>
 
@@ -400,13 +404,9 @@ function App() {
           </form>
         </section>
 
-        {error && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-sm">
-            <strong>Error:</strong> {error}
-          </div>
-        )}
+        {error && <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-sm"><strong>Error:</strong> {error}</div>}
 
-        {/* Analytics Metrics Header */}
+        {/* Analytics Header */}
         {leads.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fadeIn">
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
@@ -414,29 +414,21 @@ function App() {
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Leads Scanned</span>
                 <h3 className="text-2xl font-extrabold text-[#1F2937]">{totalScanned}</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#4F7DF3] flex items-center justify-center">
-                <Layers className="w-5 h-5" />
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#4F7DF3] flex items-center justify-center"><Layers className="w-5 h-5" /></div>
             </div>
-
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
               <div className="space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Average ICP Score</span>
                 <h3 className="text-2xl font-extrabold text-[#22C55E]">{avgScore} / 10</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#22C55E] flex items-center justify-center">
-                <Award className="w-5 h-5" />
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#22C55E] flex items-center justify-center"><Award className="w-5 h-5" /></div>
             </div>
-
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
               <div className="space-y-1">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">High Opportunity Rate</span>
                 <h3 className="text-2xl font-extrabold text-[#1F2937]">{conversionRate}%</h3>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5" />
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center"><TrendingUp className="w-5 h-5" /></div>
             </div>
           </div>
         )}
@@ -446,20 +438,13 @@ function App() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <h2 className="text-lg font-bold text-[#1F2937] flex items-center gap-2">
               <Target className="w-5 h-5 text-[#4F7DF3]" /> Qualified Leads 
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold">
-                {filteredLeads.length}
-              </span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold">{filteredLeads.length}</span>
             </h2>
-
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-1.5 bg-[#FFFFFF] border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-600 shadow-xs">
                 <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                 <span>Sort by:</span>
-                <select 
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-transparent font-semibold text-[#1F2937] focus:outline-none cursor-pointer"
-                >
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="bg-transparent font-semibold text-[#1F2937] focus:outline-none cursor-pointer">
                   <option value="score">Highest Score</option>
                   <option value="name">Company Name</option>
                 </select>
@@ -483,33 +468,16 @@ function App() {
           </div>
 
           <div className="flex items-center justify-between bg-[#FFFFFF] border border-slate-200 rounded-xl px-4 py-3 shadow-xs">
-            <button 
-              onClick={handleSelectAll}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-[#4F7DF3]"
-            >
-              {selectedLeads.length === filteredLeads.length && filteredLeads.length > 0 ? (
-                <CheckSquare className="w-4 h-4 text-[#4F7DF3]" />
-              ) : (
-                <Square className="w-4 h-4 text-slate-400" />
-              )}
+            <button onClick={handleSelectAll} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-[#4F7DF3] cursor-pointer">
+              {selectedLeads.length === filteredLeads.length && filteredLeads.length > 0 ? <CheckSquare className="w-4 h-4 text-[#4F7DF3]" /> : <Square className="w-4 h-4 text-slate-400" />}
               Select All ({selectedLeads.length} selected)
             </button>
-            
             <div className="flex items-center gap-2">
-              <button 
-                disabled={selectedLeads.length === 0}
-                onClick={handleCopyAllSelected}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4F7DF3] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 disabled:opacity-40 transition-colors"
-              >
+              <button disabled={selectedLeads.length === 0} onClick={handleCopyAllSelected} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4F7DF3] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 disabled:opacity-40 transition-colors cursor-pointer">
                 {globalCopied ? <Check className="w-3.5 h-3.5 text-[#22C55E]" /> : <ClipboardList className="w-3.5 h-3.5" />}
-                {globalCopied ? "Copied All as Markdown!" : "Copy Selected Sequences"}
+                {globalCopied ? "Copied All!" : "Copy Selected Sequences"}
               </button>
-
-              <button 
-                disabled={leads.length === 0}
-                onClick={handleExportCSV}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors cursor-pointer"
-              >
+              <button disabled={leads.length === 0} onClick={handleExportCSV} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
                 <Download className="w-3.5 h-3.5" /> Export to CSV
               </button>
             </div>
@@ -517,82 +485,58 @@ function App() {
 
           {filteredLeads.length === 0 && !loading ? (
             <div className="bg-[#FFFFFF] border border-slate-200 rounded-2xl p-16 text-center space-y-3 shadow-xs">
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                <Search className="w-6 h-6" />
-              </div>
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400"><Search className="w-6 h-6" /></div>
               <p className="text-slate-600 font-medium">No leads generated yet.</p>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Enter your target industry, location, and desired lead count above and click <strong>Search Leads</strong> to trigger your backend AI agent.
-              </p>
             </div>
           ) : loading ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center space-y-4 shadow-xs">
               <Loader2 className="w-8 h-8 animate-spin text-[#4F7DF3] mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">Agent is querying search tools and scaling to return up to {maxResults} leads...</p>
+              <p className="text-sm font-semibold text-slate-700">Loading database or running agent...</p>
             </div>
           ) : viewMode === 'cards' ? (
             <div className="grid grid-cols-1 gap-4">
               {filteredLeads.map((lead) => {
                 const isSelected = selectedLeads.includes(lead.id);
                 return (
-                  <div
-                    key={lead.id}
-                    className={`bg-[#FFFFFF] border rounded-2xl p-6 shadow-xs transition-all space-y-4 relative ${isSelected ? 'border-[#4F7DF3] ring-1 ring-[#4F7DF3]/20 bg-[#4F7DF3]/[0.01]' : 'border-slate-200'}`}
-                  >
+                  <div key={lead.id} className={`bg-[#FFFFFF] border rounded-2xl p-6 shadow-xs transition-all space-y-4 ${isSelected ? 'border-[#4F7DF3] ring-1 ring-[#4F7DF3]/25' : 'border-slate-200'}`}>
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <button onClick={() => toggleSelectLead(lead.id)} className="mt-1 text-slate-400 hover:text-[#4F7DF3]">
+                        <button onClick={() => toggleSelectLead(lead.id)} className="mt-1 text-slate-400 hover:text-[#4F7DF3] cursor-pointer">
                           {isSelected ? <CheckSquare className="w-4 h-4 text-[#4F7DF3]" /> : <Square className="w-4 h-4" />}
                         </button>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-base font-bold text-[#1F2937]">{lead.company_name}</h3>
-                            <span className="text-xs text-slate-400 font-medium">({lead.location})</span>
-                          </div>
+                          <h3 className="text-base font-bold text-[#1F2937]">{lead.company_name} <span className="text-xs text-slate-400 font-medium">({lead.location})</span></h3>
                           <div className="flex items-center gap-4 mt-1 flex-wrap">
-                            <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-[#4F7DF3] hover:underline inline-flex items-center gap-1 font-medium">
-                              {lead.website} <ExternalLink className="w-3 h-3" />
-                            </a>
-                            <span className="text-xs text-slate-500 inline-flex items-center gap-1">
-                              <Mail className="w-3 h-3 text-slate-400" /> {lead.email}
-                            </span>
-                            <span className="text-xs text-slate-500 inline-flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-slate-400" /> {lead.phone}
-                            </span>
+                            <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-xs text-[#4F7DF3] hover:underline inline-flex items-center gap-1 font-medium">{lead.website} <ExternalLink className="w-3 h-3" /></a>
+                            <span className="text-xs text-slate-500 inline-flex items-center gap-1"><Mail className="w-3 h-3 text-slate-400" /> {lead.email}</span>
+                            <span className="text-xs text-slate-500 inline-flex items-center gap-1"><Phone className="w-3 h-3 text-slate-400" /> {lead.phone}</span>
                           </div>
                         </div>
                       </div>
-
                       <div className="flex items-center gap-3">
                         <span className="inline-flex items-center gap-1 bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20 text-xs px-3 py-1 rounded-full font-bold">
                           ICP Score: {lead.icp_fit_score}/10
                         </span>
-                        <button
-                          onClick={(e) => handleDeleteLead(lead.id, e)}
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Delete Lead"
-                        >
+                        <button onClick={(e) => handleDeleteLead(lead.id, e)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Delete Lead">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
-
                     <div className="bg-[#F5F7FA] p-3.5 rounded-xl border border-slate-200/60 space-y-1">
                       <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">AI Analysis & Insight</span>
                       <p className="text-xs text-slate-700 leading-relaxed">{lead.ai_insight}</p>
                     </div>
-
                     <div className="bg-blue-50/50 p-4 rounded-xl border border-[#4F7DF3]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1 flex-1">
                         <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook ({emailTone})</span>
                         <p className="text-xs text-[#1F2937] italic">"{lead.outreach_angle}"</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => copyToClipboard(lead.outreach_angle, lead.id)} className="inline-flex items-center gap-1 text-xs font-semibold bg-white text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs">
+                        <button onClick={() => copyToClipboard(lead.outreach_angle, lead.id)} className="inline-flex items-center gap-1 text-xs font-semibold bg-white text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg shadow-xs cursor-pointer">
                           {copiedId === lead.id ? <Check className="w-3.5 h-3.5 text-[#22C55E]" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
                           {copiedId === lead.id ? "Copied" : "Copy Hook"}
                         </button>
-                        <button onClick={() => setActiveModalLead(lead)} className="inline-flex items-center gap-1 text-xs font-semibold bg-[#4F7DF3] text-white px-3.5 py-1.5 rounded-lg shadow-xs">
+                        <button onClick={() => setActiveModalLead(lead)} className="inline-flex items-center gap-1 text-xs font-semibold bg-[#4F7DF3] text-white px-3.5 py-1.5 rounded-lg shadow-xs cursor-pointer">
                           <Mail className="w-3.5 h-3.5" /> Sequencer & Details <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -607,7 +551,7 @@ function App() {
                 <thead>
                   <tr className="bg-[#F5F7FA] border-b border-slate-200 text-slate-500 uppercase font-semibold">
                     <th className="p-4 w-10">
-                      <button onClick={handleSelectAll}>
+                      <button onClick={handleSelectAll} className="cursor-pointer">
                         {selectedLeads.length === filteredLeads.length ? <CheckSquare className="w-4 h-4 text-[#4F7DF3]" /> : <Square className="w-4 h-4 text-slate-400" />}
                       </button>
                     </th>
@@ -625,7 +569,7 @@ function App() {
                     return (
                       <tr key={lead.id} className={`hover:bg-[#F5F7FA]/60 ${isSelected ? 'bg-[#4F7DF3]/[0.02]' : ''}`}>
                         <td className="p-4">
-                          <button onClick={() => toggleSelectLead(lead.id)}>
+                          <button onClick={() => toggleSelectLead(lead.id)} className="cursor-pointer">
                             {isSelected ? <CheckSquare className="w-4 h-4 text-[#4F7DF3]" /> : <Square className="w-4 h-4 text-slate-400" />}
                           </button>
                         </td>
@@ -639,12 +583,8 @@ function App() {
                           </span>
                         </td>
                         <td className="p-4 text-right space-x-2">
-                          <button onClick={() => setActiveModalLead(lead)} className="text-[#4F7DF3] font-semibold hover:underline">
-                            View
-                          </button>
-                          <button onClick={(e) => handleDeleteLead(lead.id, e)} className="text-rose-600 hover:text-rose-800 font-semibold">
-                            Delete
-                          </button>
+                          <button onClick={() => setActiveModalLead(lead)} className="text-[#4F7DF3] font-semibold hover:underline cursor-pointer">View</button>
+                          <button onClick={(e) => handleDeleteLead(lead.id, e)} className="text-rose-600 hover:text-rose-800 font-semibold cursor-pointer">Delete</button>
                         </td>
                       </tr>
                     );
@@ -654,7 +594,6 @@ function App() {
             </div>
           )}
         </section>
-
       </main>
 
       {/* Modal */}
@@ -673,7 +612,7 @@ function App() {
                   <span className="text-xs text-slate-600">Phone: <strong>{activeModalLead.phone}</strong></span>
                 </div>
               </div>
-              <button onClick={() => setActiveModalLead(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+              <button onClick={() => setActiveModalLead(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -694,69 +633,91 @@ function App() {
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 1: Initial Cold Outreach</span>
-                    <button 
-                      onClick={() => copyToClipboard(activeModalLead.email_sequence.step1, 'step1')}
-                      className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1"
-                    >
+                    <button onClick={() => copyToClipboard(activeModalLead.email_sequence.step1, 'step1')} className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer">
                       {copiedId === 'step1' ? <Check className="w-3 h-3 text-[#22C55E]" /> : <Copy className="w-3 h-3" />}
                       {copiedId === 'step1' ? "Copied" : "Copy Email"}
                     </button>
                   </div>
-                  <textarea
-                    defaultValue={activeModalLead.email_sequence.step1}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono"
-                  />
+                  <textarea defaultValue={activeModalLead.email_sequence.step1} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono" />
                 </div>
 
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 2: Value-Add Follow-Up (Day 3)</span>
-                    <button 
-                      onClick={() => copyToClipboard(activeModalLead.email_sequence.step2, 'step2')}
-                      className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1"
-                    >
+                    <button onClick={() => copyToClipboard(activeModalLead.email_sequence.step2, 'step2')} className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer">
                       {copiedId === 'step2' ? <Check className="w-3 h-3 text-[#22C55E]" /> : <Copy className="w-3 h-3" />}
                       {copiedId === 'step2' ? "Copied" : "Copy Email"}
                     </button>
                   </div>
-                  <textarea
-                    defaultValue={activeModalLead.email_sequence.step2}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono"
-                  />
+                  <textarea defaultValue={activeModalLead.email_sequence.step2} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono" />
                 </div>
 
                 <div className="bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700">Step 3: Breaking the Ice / Breakup Email (Day 7)</span>
-                    <button 
-                      onClick={() => copyToClipboard(activeModalLead.email_sequence.step3, 'step3')}
-                      className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1"
-                    >
+                    <button onClick={() => copyToClipboard(activeModalLead.email_sequence.step3, 'step3')} className="text-xs text-[#4F7DF3] font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer">
                       {copiedId === 'step3' ? <Check className="w-3 h-3 text-[#22C55E]" /> : <Copy className="w-3 h-3" />}
                       {copiedId === 'step3' ? "Copied" : "Copy Email"}
                     </button>
                   </div>
-                  <textarea
-                    defaultValue={activeModalLead.email_sequence.step3}
-                    className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono"
-                  />
+                  <textarea defaultValue={activeModalLead.email_sequence.step3} className="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] h-28 leading-relaxed resize-none font-mono" />
                 </div>
               </div>
-
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              <button 
-                onClick={(e) => { handleDeleteLead(activeModalLead.id, e); }}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200 transition-colors"
-              >
+              <button onClick={(e) => { handleDeleteLead(activeModalLead.id, e); }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 px-4 py-2 rounded-xl border border-rose-200 transition-colors cursor-pointer">
                 <Trash2 className="w-3.5 h-3.5" /> Delete Lead
               </button>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setActiveModalLead(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">
-                  Close
+              <button onClick={() => setActiveModalLead(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SEARCH HISTORY SIDEBAR DRAWER */}
+      {showHistory && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end">
+          <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 flex flex-col justify-between animate-slideLeft">
+            <div className="space-y-6 overflow-y-auto flex-1">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h3 className="font-bold text-lg text-[#1F2937] flex items-center gap-2">
+                  <History className="w-5 h-5 text-[#4F7DF3]" /> Past Search History
+                </h3>
+                <button onClick={() => setShowHistory(false)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer">
+                  <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {loadingHistory ? (
+                <div className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#4F7DF3] mx-auto" /></div>
+              ) : historyList.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-12">No saved search sessions found in database.</p>
+              ) : (
+                <div className="space-y-3">
+                  {historyList.map((item) => (
+                    <div 
+                      key={item.session_id}
+                      onClick={() => handleLoadSession(item.session_id, item.industry, item.location)}
+                      className="p-4 rounded-xl border border-slate-200 hover:border-[#4F7DF3] hover:bg-blue-50/20 transition-all cursor-pointer space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-[#1F2937]">{item.industry}</span>
+                        <span className="text-xs font-semibold bg-emerald-50 text-[#22C55E] px-2 py-0.5 rounded-full">{item.total_leads} Leads</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(item.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="pt-4 border-t border-slate-100 text-center text-xs text-slate-400">
+              Click any past search session to instantly reload leads from the database.
             </div>
           </div>
         </div>
