@@ -4,7 +4,7 @@ from typing import List
 class LeadGenRequest(BaseModel):
     industry: str = Field(..., description="Target industry, e.g., 'SaaS startups'")
     location: str = Field(..., description="Target location, e.g., 'Austin, TX'")
-    max_results: int = Field(5, description="Maximum number of leads to process")
+    max_results: int = Field(25, description="Maximum number of leads to process")
 
 class EnrichedLead(BaseModel):
     company_name: str = Field(description="Name of the target company")

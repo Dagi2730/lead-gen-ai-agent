@@ -4,12 +4,12 @@ from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 
 @tool
-def search_companies(query: str) -> str:
+def search_companies(query: str, max_results: int = 25) -> str:
     """Search the live web for companies matching a specific query and location using DuckDuckGo."""
     try:
         results = []
         with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=5):
+            for r in ddgs.text(query, max_results=max_results):
                 results.append(f"Title: {r.get('title')}\nURL: {r.get('href')}\nSnippet: {r.get('body')}\n")
         if not results:
             return "No live companies found for this query."

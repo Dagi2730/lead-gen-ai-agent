@@ -11,8 +11,8 @@ class LeadGenAgent:
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
         
     def run_pipeline(self, industry: str, location: str, max_results: int) -> LeadGenResponse:
-        # Step 1: Perform a live search query using our tool
-        search_query = f"{industry} companies in {location}"
+        # Step 1: Perform a live search query using our tool, adjusting query scope for scale if needed
+        search_query = f"top {max_results} {industry} companies in {location}"
         search_results_raw = search_companies.invoke({"query": search_query})
         
         # Step 2: Use structured output to map search results directly into our schema
@@ -36,7 +36,7 @@ class LeadGenAgent:
             result = structured_llm.invoke(prompt)
             return result
         except Exception as e:
-            print(f"DEBUG PARSING ERROR: {str(e)}") # Prints error to your terminal for visibility
+            print(f"DEBUG PARSING ERROR: {str(e)}")
             fallback_lead = EnrichedLead(
                 company_name="Analyzed Target Business",
                 website="https://example.com",
