@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.schemas import LeadGenRequest, LeadGenResponse
 from app.agent import LeadGenAgent
@@ -34,14 +35,12 @@ def get_db():
 @app.post("/api/v1/generate-leads", response_model=LeadGenResponse)
 async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db)):
     try:
-        # Run agent pipeline
-        result = agent.run_pipeline(
+        result = await agent.run_pipeline(
             industry=payload.industry,
             location=payload.location,
             max_results=payload.max_results
         )
         
-        # Save search session to database
         db_session = SearchSession(
             industry=payload.industry,
             location=payload.location,
@@ -51,7 +50,6 @@ async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db))
         db.commit()
         db.refresh(db_session)
         
-        # Save individual leads linked to session
         for lead in result.leads:
             db_lead = DBLead(
                 session_id=db_session.id,
@@ -69,6 +67,25 @@ async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db))
         db.commit()
         
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class RegenerateHookRequest(BaseModel):
+    company_name: str
+    website: str
+    description: str
+    industry: str
+    location: str
+
+@app.post("/api/v1/regenerate-hook")
+async def regenerate_hook(payload: RegenerateHookRequest):
+    try:
+        prompt = f"""
+        You are an elite B2B Growth Expert. Provide a brand-new, highly creative, and personalized cold outreach hook/angle for the company '{payload.company_name}' ({payload.website}), which operates in the {payload.industry} sector in {payload.location}. Description: {payload.description}.
+        Return only a single short paragraph containing the new outreach hook.
+        """
+        response = await agent.llm.ainvoke(prompt)
+        return {"status": "success", "new_hook": response.content.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
