@@ -9,11 +9,12 @@ class LeadGenRequest(BaseModel):
 class EnrichedLead(BaseModel):
     company_name: str = Field(description="Name of the target company")
     website: str = Field(description="Company website URL")
-    email: str = Field(description="Professional contact email, e.g., contact@company.com")
+    description: str = Field(description="A brief 1-2 sentence description or overview of what the company does")
+    email: str = Field(description="Professional contact email")
     phone: str = Field(description="Company business phone number")
-    icp_fit_score: int = Field(description="Score from 1 to 10 indicating fit against Ideal Customer Profile")
-    qualification_reasoning: str = Field(description="Brief explanation of why this company matches the ICP")
-    suggested_outreach_angle: str = Field(description="Personalized cold outreach hook based on their profile")
+    icp_fit_score: int = Field(description="Score from 1 to 10")
+    qualification_reasoning: str = Field(description="Brief explanation of ICP fit")
+    suggested_outreach_angle: str = Field(description="Personalized outreach hook")
 
 class LeadGenResponse(BaseModel):
     status: str = Field(default="success")

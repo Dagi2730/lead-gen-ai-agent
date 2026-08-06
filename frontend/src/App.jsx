@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 
 function App() {
-  // Search & Filter State
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
   const [maxResults, setMaxResults] = useState(25);
@@ -15,13 +14,9 @@ function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('score');
   
-  // Single Company Lookup State
   const [singleCompanyQuery, setSingleCompanyQuery] = useState('');
-
-  // Global Tone Selector State
   const [emailTone, setEmailTone] = useState('Professional & Consultative');
 
-  // UI State
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState('cards');
   const [selectedLeads, setSelectedLeads] = useState([]);
@@ -31,15 +26,12 @@ function App() {
   const [globalCopied, setGlobalCopied] = useState(false);
   const [error, setError] = useState('');
 
-  // History Drawer State
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Leads Data State
   const [leads, setLeads] = useState([]);
 
-  // Example Search Chips
   const exampleSearches = [
     { industry: "Marketing Agencies", location: "Austin, TX" },
     { industry: "SaaS Startups", location: "San Francisco, CA" },
@@ -51,7 +43,6 @@ function App() {
     setLocation(loc);
   };
 
-  // Expanded, longer, and deeply human-like cold email templates
   const generateSequenceForTone = (lead, tone) => {
     if (tone === 'Aggressive & Direct') {
       return {
@@ -61,7 +52,7 @@ function App() {
       };
     } else if (tone === 'Casual & Friendly') {
       return {
-        step1: `Subject: Stumbled across ${lead.company_name} 🚀\n\nHey there,\n\nI was doing some research on top teams in the ${industry || 'industry'} space and came across ${lead.website}. Really love what you guys are building over there!\n\nWhile clicking around, I noticed one little detail that caught my eye: ${lead.suggested_outreach_angle}\n\nI actually put together a quick, casual 2-minute Loom video breaking down an idea that could help boost engagement. Would you be open to me shooting that link over? No pressure at all!`,
+        step1: `Subject: Stumbled across ${lead.company_name} 🚀\n\nHey there,\n\nI was doing some research on top teams in the industry space and came across ${lead.website}. Really love what you guys are building over there!\n\nWhile clicking around, I noticed one little detail that caught my eye: ${lead.suggested_outreach_angle}\n\nI actually put together a quick, casual 2-minute Loom video breaking down an idea that could help boost engagement. Would you be open to me shooting that link over? No pressure at all!`,
         step2: `Subject: Re: Stumbled across ${lead.company_name} 🚀\n\nHey again!\n\nJust bubbling this up in case it got buried under a mountain of emails. I know how hectic inboxes get!\n\nCurious if you had a chance to look at ${lead.website}'s current conversion flow? I'd love to chat about a super simple tweak that worked wonders for another team in ${lead.location || 'the area'}.\n\nLet me know if you're up for a quick coffee chat sometime next week!`,
         step3: `Subject: Catch you later / ${lead.company_name}\n\nHey,\n\nFigured your inbox is totally swamped right now, so I'll leave it here! \n\nIf optimizing client acquisition ever bubbles back up to the top of your list down the road, you know where to find me. Have an awesome week ahead!`
       };
@@ -72,10 +63,9 @@ function App() {
         step3: `Subject: Final outreach: Advisory services for ${lead.company_name}\n\nDear team,\n\nAs I have not received a response, I will conclude my outreach at this time. Should strategic growth initiatives become a focal point for ${lead.company_name} in future quarters, my professional inbox remains available.\n\nRespectfully yours.`
       };
     } else {
-      // Default: Professional & Consultative
       return {
         step1: `Subject: Ideas for scaling ${lead.company_name}\n\nHi team,\n\nI was reviewing ${lead.website} recently and noticed a great opportunity to enhance your digital conversion framework in ${location || 'your region'}.\n\n${lead.suggested_outreach_angle}\n\nWe specialize in partnering with growth-focused teams to refine their client acquisition funnel. Would you be open to a brief 10-minute consultative chat this week to explore if there's a mutually beneficial fit?`,
-        step2: `Subject: Re: Ideas for scaling ${lead.company_name}\n\nHi again,\n\nJust following up on my previous note. Most leaders we speak with in ${industry || 'this sector'} are actively looking for ways to streamline prospect onboarding without increasing overhead.\n\nHere is a brief case study of how we approached a similar challenge: [Link]\n\nWould this perspective be of value to your team right now?`,
+        step2: `Subject: Re: Ideas for scaling ${lead.company_name}\n\nHi again,\n\nJust following up on my previous note. Most leaders we speak with are actively looking for ways to streamline prospect onboarding without increasing overhead.\n\nHere is a brief case study of how we approached a similar challenge: [Link]\n\nWould this perspective be of value to your team right now?`,
         step3: `Subject: Closing the loop / ${lead.company_name}\n\nHi,\n\nI'm assuming priorities have shifted and this isn't top of mind right now. Should optimizing lead acquisition become a focus for ${lead.company_name} in the future, my inbox is always open.\n\nBest regards.`
       };
     }
@@ -96,6 +86,20 @@ function App() {
     }
   };
 
+  const handleDeleteHistorySession = async (sessionId, e) => {
+    e.stopPropagation();
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/v1/history/${sessionId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        setHistoryList(prev => prev.filter(item => item.session_id !== sessionId));
+      }
+    } catch (err) {
+      console.error("Failed to delete session", err);
+    }
+  };
+
   const handleLoadSession = async (sessionId, sessionIndustry, sessionLocation) => {
     setLoading(true);
     setError('');
@@ -112,6 +116,7 @@ function App() {
           id: idx + 1,
           company_name: lead.company_name,
           website: lead.website,
+          description: lead.description || `${lead.company_name} operates in the ${sessionIndustry} sector within ${sessionLocation}.`,
           email: lead.email || 'N/A',
           phone: lead.phone || 'N/A',
           location: sessionLocation,
@@ -127,6 +132,7 @@ function App() {
       });
 
       setLeads(formattedLeads);
+      setSelectedLeads([]);
       setShowHistory(false);
     } catch (err) {
       setError(err.message);
@@ -135,7 +141,6 @@ function App() {
     }
   };
 
-  // Feature 1: Single Company Lookup Handler
   const handleSingleCompanySearch = async (e) => {
     e.preventDefault();
     if (!singleCompanyQuery.trim()) return;
@@ -162,6 +167,7 @@ function App() {
           id: Date.now(),
           company_name: lead.company_name,
           website: lead.website,
+          description: lead.description || `${lead.company_name} provides professional solutions tailored for client scaling and support.`,
           email: lead.email || 'N/A',
           phone: lead.phone || 'N/A',
           location: location || "Target Location",
@@ -188,7 +194,7 @@ function App() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setLeads([]);
+    setLeads([]); // Clear former leads so new search populates cleanly
     setSelectedLeads([]);
 
     try {
@@ -210,6 +216,7 @@ function App() {
           id: idx + 1,
           company_name: lead.company_name,
           website: lead.website,
+          description: lead.description || `${lead.company_name} is a leading provider specializing in ${industry} services within ${location}.`,
           email: lead.email || 'N/A',
           phone: lead.phone || 'N/A',
           location: location,
@@ -242,7 +249,6 @@ function App() {
     }
   };
 
-  // Feature 2: Modal-Specific Tone Change Handler
   const handleModalToneChange = (newTone) => {
     setModalTone(newTone);
     if (activeModalLead) {
@@ -286,7 +292,7 @@ function App() {
     let markdownOutput = `# Selected B2B Prospecting Leads (${selectedLeadObjects.length})\nGenerated with LeadGen AI\n\n---\n\n`;
     selectedLeadObjects.forEach((lead, index) => {
       markdownOutput += `### ${index + 1}. ${lead.company_name}\n`;
-      markdownOutput += `- **Website:** ${lead.website}\n- **Email:** ${lead.email}\n- **Phone:** ${lead.phone}\n`;
+      markdownOutput += `- **Website:** ${lead.website}\n- **Description:** ${lead.description}\n- **Email:** ${lead.email}\n- **Phone:** ${lead.phone}\n`;
       markdownOutput += `- **Location:** ${lead.location}\n- **ICP Score:** ${lead.icp_fit_score}/10\n- **AI Insight:** ${lead.ai_insight}\n\n`;
     });
 
@@ -298,12 +304,13 @@ function App() {
   const handleExportCSV = () => {
     if (leads.length === 0) return;
 
-    const headers = ["Company Name", "Website", "Email", "Phone", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
+    const headers = ["Company Name", "Website", "Description", "Email", "Phone", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
     const csvRows = [
       headers.join(","),
       ...leads.map(lead => [
         `"${lead.company_name}"`,
         `"${lead.website}"`,
+        `"${lead.description.replace(/"/g, '""')}"`,
         `"${lead.email}"`,
         `"${lead.phone}"`,
         `"${lead.location}"`,
@@ -375,7 +382,6 @@ function App() {
               </p>
             </div>
 
-            {/* Feature 1: Single Company Lookup Bar */}
             <form onSubmit={handleSingleCompanySearch} className="flex items-center gap-2 bg-[#F5F7FA] p-1.5 rounded-xl border border-slate-200">
               <div className="relative flex-1">
                 <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
@@ -619,10 +625,17 @@ function App() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Company Description Section */}
+                    <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
+                      <strong>Company Overview:</strong> {lead.description}
+                    </div>
+
                     <div className="bg-[#F5F7FA] p-3.5 rounded-xl border border-slate-200/60 space-y-1">
                       <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">AI Analysis & Insight</span>
                       <p className="text-xs text-slate-700 leading-relaxed">{lead.ai_insight}</p>
                     </div>
+
                     <div className="bg-blue-50/50 p-4 rounded-xl border border-[#4F7DF3]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1 flex-1">
                         <span className="text-[11px] font-bold text-[#4F7DF3] uppercase tracking-wider block">Personalized Outreach Hook</span>
@@ -693,7 +706,7 @@ function App() {
         </section>
       </main>
 
-      {/* Modal with Feature 2: Per-Lead Tone Selector */}
+      {/* Modal */}
       {activeModalLead && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FFFFFF] border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 md:p-8 space-y-6">
@@ -710,7 +723,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Feature 2: Dropdown tone switcher inside modal */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500">Tone:</span>
                 <select 
@@ -730,6 +742,13 @@ function App() {
             </div>
 
             <div className="space-y-6 text-sm">
+              <div className="space-y-1.5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Company Description</h4>
+                <p className="text-slate-700 bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 leading-relaxed text-xs">
+                  {activeModalLead.description}
+                </p>
+              </div>
+
               <div className="space-y-1.5">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Analysis & Reasoning</h4>
                 <p className="text-slate-700 bg-[#F5F7FA] p-4 rounded-xl border border-slate-200 leading-relaxed text-xs">
@@ -789,7 +808,7 @@ function App() {
         </div>
       )}
 
-      {/* SEARCH HISTORY SIDEBAR DRAWER */}
+      {/* SEARCH HISTORY SIDEBAR DRAWER WITH DELETE BUTTON */}
       {showHistory && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-end">
           <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 flex flex-col justify-between animate-slideLeft">
@@ -813,11 +832,20 @@ function App() {
                     <div 
                       key={item.session_id}
                       onClick={() => handleLoadSession(item.session_id, item.industry, item.location)}
-                      className="p-4 rounded-xl border border-slate-200 hover:border-[#4F7DF3] hover:bg-blue-50/20 transition-all cursor-pointer space-y-2"
+                      className="p-4 rounded-xl border border-slate-200 hover:border-[#4F7DF3] hover:bg-blue-50/20 transition-all cursor-pointer space-y-2 relative group"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-sm text-[#1F2937]">{item.industry}</span>
-                        <span className="text-xs font-semibold bg-emerald-50 text-[#22C55E] px-2 py-0.5 rounded-full">{item.total_leads} Leads</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold bg-emerald-50 text-[#22C55E] px-2 py-0.5 rounded-full">{item.total_leads} Leads</span>
+                          <button 
+                            onClick={(e) => handleDeleteHistorySession(item.session_id, e)}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition-colors"
+                            title="Delete Search History"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location}</span>

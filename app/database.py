@@ -27,6 +27,7 @@ class DBLead(Base):
     session_id = Column(Integer, ForeignKey("search_sessions.id"))
     company_name = Column(String)
     website = Column(String)
+    description = Column(Text)
     email = Column(String)
     phone = Column(String)
     location = Column(String)

@@ -57,6 +57,7 @@ async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db))
                 session_id=db_session.id,
                 company_name=lead.company_name,
                 website=lead.website,
+                description=lead.description,
                 email=lead.email,
                 phone=lead.phone,
                 location=payload.location,
@@ -97,6 +98,7 @@ def get_session_leads(session_id: int, db: Session = Depends(get_db)):
         leads_list.append({
             "company_name": l.company_name,
             "website": l.website,
+            "description": l.description,
             "email": l.email,
             "phone": l.phone,
             "icp_fit_score": int(l.icp_fit_score),
@@ -109,6 +111,15 @@ def get_session_leads(session_id: int, db: Session = Depends(get_db)):
         "total_leads_analyzed": len(leads_list),
         "leads": leads_list
     }
+
+@app.delete("/api/v1/history/{session_id}")
+def delete_search_session(session_id: int, db: Session = Depends(get_db)):
+    db_session = db.query(SearchSession).filter(SearchSession.id == session_id).first()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Search session not found")
+    db.delete(db_session)
+    db.commit()
+    return {"status": "success", "message": f"Session {session_id} deleted successfully"}
 
 @app.get("/")
 def health_check():
