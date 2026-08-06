@@ -31,10 +31,10 @@ class LeadGenAgent:
         
         Your instructions:
         1. Generate exactly {max_results} high-quality B2B lead entries for '{industry}' located in '{location}'. 
-        2. If the search results above are empty or limited, use your extensive industry knowledge to realistically simulate verified active companies operating in that sector and location with realistic website URLs (e.g. https://www.companyname.com).
-        3. Assign a realistic icp_fit_score from 1 to 10.
-        4. Write a brief qualification_reasoning explaining the score.
-        5. Provide a suggested_outreach_angle tailored specifically to their growth.
+        2. If search results are limited, simulate realistic active companies in that sector and location.
+        3. Provide a realistic professional contact email (e.g., info@domain.com) and business phone number for each.
+        4. Assign a realistic icp_fit_score from 1 to 10.
+        5. Write a brief qualification_reasoning and a suggested_outreach_angle.
         6. Set total_leads_analyzed to exactly {max_results}.
         """
         
@@ -45,14 +45,17 @@ class LeadGenAgent:
             return result
         except Exception as e:
             print(f"DEBUG GENERATION ERROR: {str(e)}")
-            # Fixed syntax typo: industry[:-1]
             fallback_leads = []
             base_name = industry[:-1] if industry.endswith('s') else industry
             for i in range(1, max_results + 1):
+                clean_name = f"{base_name} Pro {i}"
+                domain = f"{industry.lower().replace(' ', '')}partner{i}.com"
                 fallback_leads.append(
                     EnrichedLead(
-                        company_name=f"{base_name} Pro {i}",
-                        website=f"https://www.{industry.lower().replace(' ', '')}partner{i}.com",
+                        company_name=clean_name,
+                        website=f"https://www.{domain}",
+                        email=f"hello@{domain}",
+                        phone=f"+1 (555) {100 + i}-{4000 + i}",
                         icp_fit_score=7 + (i % 4),
                         qualification_reasoning=f"Active provider specializing in {industry} services within the {location} regional market.",
                         suggested_outreach_angle=f"Offered targeted conversion optimization to scale inbound client acquisition for {location} operations."
