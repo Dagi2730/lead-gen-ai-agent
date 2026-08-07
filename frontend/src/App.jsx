@@ -6,6 +6,8 @@ import {
   Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send
 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://lead-gen-ai-agent-2.onrender.com';
+
 function App() {
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
@@ -65,7 +67,7 @@ function App() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/history');
+      const response = await fetch(`${API_BASE_URL}/api/v1/history`);
       if (response.ok) {
         const data = await response.json();
         setHistoryList(data);
@@ -80,7 +82,7 @@ function App() {
   const handleDeleteHistorySession = async (sessionId, e) => {
     e.stopPropagation();
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/history/${sessionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/history/${sessionId}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -95,7 +97,7 @@ function App() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/history/${sessionId}`);
+      const response = await fetch(`${API_BASE_URL}/api/v1/history/${sessionId}`);
       if (!response.ok) throw new Error("Failed to load session leads");
       
       const data = await response.json();
@@ -141,7 +143,7 @@ function App() {
 
     setRegeneratingId(leadId);
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/regenerate-hook', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/regenerate-hook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +176,6 @@ function App() {
     }
   };
 
-  // Direct Email Sending Handler (Mailto link)
   const handleDirectEmailSend = (email, emailContent) => {
     if (!email || email === 'N/A') {
       alert("No valid email address available for this lead.");
@@ -212,7 +213,7 @@ function App() {
     setError('');
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/generate-leads', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/generate-leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -264,7 +265,7 @@ function App() {
     setSelectedLeads([]);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/generate-leads', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/generate-leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
