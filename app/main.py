@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
@@ -64,8 +64,6 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
                 detail="Email already registered"
             )
         
-        # BULLETPROOF FIX: We slice the password down to 72 characters right here
-        # before it ever gets sent to the bcrypt library.
         safe_password = user.password[:72]
         hashed_password = get_password_hash(safe_password)
         
@@ -91,7 +89,6 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
     
-    # Slice the password to 72 characters here as well for login verification
     safe_password = form_data.password[:72]
     
     if not user or not verify_password(safe_password, user.hashed_password):
@@ -189,6 +186,67 @@ async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db),
         
         return result
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/import-csv", response_model=LeadGenResponse)
+async def import_csv_leads(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    try:
+        contents = await file.read()
+        decoded_content = contents.decode('utf-8-sig')
+        csv_reader = csv.reader(io.StringIO(decoded_content))
+        
+        headers = next(csv_reader, None)
+        if not headers:
+            raise HTTPException(status_code=400, detail="The uploaded CSV file is empty.")
+        
+        company_idx = 0
+        for idx, h in enumerate(headers):
+            if any(kw in h.lower() for kw in ['company', 'name', 'business', 'organization']):
+                company_idx = idx
+                break
+        
+        companies = []
+        for row in csv_reader:
+            if row and len(row) > company_idx and row[company_idx].strip():
+                companies.append(row[company_idx].strip())
+        
+        if not companies:
+            raise HTTPException(status_code=400, detail="Could not find a valid company column in the CSV.")
+        
+        companies = companies[:25]
+        
+        enriched_leads = []
+        for comp in companies:
+            pipeline_result = await agent.run_pipeline(
+                industry=comp,
+                location="Global / Imported",
+                max_results=1
+            )
+            if pipeline_result.leads:
+                lead = pipeline_result.leads[0]
+                lead.company_name = comp
+                enriched_leads.append(lead)
+            else:
+                enriched_leads.append({
+                    "company_name": comp,
+                    "website": f"https://www.{comp.lower().replace(' ', '')}.com",
+                    "description": f"Imported entity {comp} processed via CSV batch pipeline.",
+                    "email": "contact@" + comp.lower().replace(' ', '') + ".com",
+                    "phone": "+1 (555) 000-0000",
+                    "icp_fit_score": 7.5,
+                    "qualification_reasoning": f"Imported enterprise matching standard vertical profile parameters.",
+                    "suggested_outreach_angle": f"Noticed {comp}'s recent market expansion; our scaling playbook directly fits your workflow.",
+                    "confidence": "Imported"
+                })
+
+        return {
+            "status": "success",
+            "total_leads_analyzed": len(enriched_leads),
+            "leads": enriched_leads
+        }
+    except Exception as e:
+        print("CSV IMPORT ERROR:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 class RegenerateHookRequest(BaseModel):

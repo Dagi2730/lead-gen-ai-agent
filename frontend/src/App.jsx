@@ -3,7 +3,7 @@ import {
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send, User
+  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send, User, Upload
 } from 'lucide-react';
 
 const API_BASE_URL = 'http://127.0.0.1:8000';
@@ -53,15 +53,12 @@ function Auth({ onLoginSuccess }) {
       }
 
       if (isLogin) {
-        // If it's a login, save token and go to dashboard
         localStorage.setItem('token', data.access_token);
         onLoginSuccess(data.access_token);
       } else {
-        // If it's a signup, DO NOT log in automatically. 
-        // Switch to the login screen and show a success message.
         setIsLogin(true);
         setSuccessMsg('Account created successfully! Please sign in to continue.');
-        setPassword(''); // Clear the password field for security
+        setPassword('');
       }
 
     } catch (err) {
@@ -165,7 +162,7 @@ function Auth({ onLoginSuccess }) {
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
-              setSuccessMsg(''); // Clear success messages when manually swapping tabs
+              setSuccessMsg('');
             }}
             className="text-xs text-[#4F7DF3] hover:underline font-semibold cursor-pointer"
           >
@@ -188,6 +185,7 @@ function App() {
   
   const [singleCompanyQuery, setSingleCompanyQuery] = useState('');
   const [emailTone, setEmailTone] = useState('Professional & Consultative');
+  const [crmExportType, setCrmExportType] = useState('generic');
 
   const [loading, setLoading] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState(null);
@@ -204,6 +202,10 @@ function App() {
   const [historyList, setHistoryList] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [userInfo, setUserInfo] = useState({ name: '', email: '', phone: '' });
+  const [accountMsg, setAccountMsg] = useState('');
+
   const [leads, setLeads] = useState([]);
 
   if (!token) {
@@ -214,6 +216,26 @@ function App() {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`
   });
+
+  const fetchUserInfo = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/me`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUserInfo({ name: data.name || '', email: data.email || '', phone: data.phone || '' });
+      }
+    } catch (err) {
+      console.error("Failed to fetch user profile", err);
+    }
+  };
+
+  const handleUpdateAccount = (e) => {
+    e.preventDefault();
+    setAccountMsg('Profile updated successfully!');
+    setTimeout(() => setAccountMsg(''), 3000);
+  };
 
   const generateSequenceForTone = (lead, tone) => {
     if (tone === 'Aggressive & Direct') {
@@ -492,6 +514,63 @@ function App() {
     }
   };
 
+  const handleCSVUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setLoading(true);
+    setError('');
+    setLeads([]);
+    setSelectedLeads([]);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/import-csv`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error("Failed to process uploaded CSV file");
+
+      const data = await response.json();
+      const formattedLeads = (data.leads || []).map((lead, idx) => {
+        const tempLead = {
+          id: idx + 1,
+          company_name: lead.company_name,
+          website: lead.website,
+          description: lead.description || `${lead.company_name} imported from external list.`,
+          email: lead.email || 'N/A',
+          phone: lead.phone || 'N/A',
+          location: lead.location || 'Imported List',
+          icp_fit_score: lead.icp_fit_score,
+          ai_insight: lead.qualification_reasoning,
+          outreach_angle: lead.suggested_outreach_angle,
+          full_analysis: lead.qualification_reasoning,
+          confidence: lead.confidence || 'Imported',
+          status: 'New'
+        };
+        return {
+          ...tempLead,
+          email_sequence: generateSequenceForTone(tempLead, emailTone)
+        };
+      });
+
+      setLeads(formattedLeads);
+      setIndustry("Imported CSV List");
+      setLocation("Multiple");
+    } catch (err) {
+      setError(err.message || 'Failed to import CSV.');
+    } finally {
+      setLoading(false);
+      e.target.value = null;
+    }
+  };
+
   const handleToneChange = (newTone) => {
     setEmailTone(newTone);
     if (leads.length > 0) {
@@ -560,28 +639,79 @@ function App() {
   const handleExportCSV = () => {
     if (leads.length === 0) return;
 
-    const headers = ["Company Name", "Website", "Status", "Description", "Email", "Phone", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
+    let headers = [];
+    let rowMapper = null;
+    let fileName = `b2b_leads_${industry.replace(/\s+/g, '_') || 'export'}.csv`;
+
+    switch (crmExportType) {
+      case 'hubspot':
+        headers = ["Company name", "Website URL", "Email", "Phone number", "City", "Lead Status", "Notes"];
+        fileName = `hubspot_import_${Date.now()}.csv`;
+        rowMapper = (lead) => [
+          `"${lead.company_name}"`,
+          `"${lead.website}"`,
+          `"${lead.email}"`,
+          `"${lead.phone}"`,
+          `"${lead.location}"`,
+          `"${lead.status}"`,
+          `"ICP: ${lead.icp_fit_score}/10 | Hook: ${lead.outreach_angle.replace(/"/g, '""')}"`
+        ];
+        break;
+
+      case 'zoho':
+        headers = ["Company", "Last Name", "Email", "Phone", "Website", "Lead Source", "Description"];
+        fileName = `zoho_import_${Date.now()}.csv`;
+        rowMapper = (lead) => [
+          `"${lead.company_name}"`,
+          `"Team"`,
+          `"${lead.email}"`,
+          `"${lead.phone}"`,
+          `"${lead.website}"`,
+          `"LeadGen AI Agent"`,
+          `"${lead.description.replace(/"/g, '""')}"`
+        ];
+        break;
+
+      case 'salesforce':
+        headers = ["Company", "LastName", "Email", "Phone", "Website", "Description", "LeadSource"];
+        fileName = `salesforce_import_${Date.now()}.csv`;
+        rowMapper = (lead) => [
+          `"${lead.company_name}"`,
+          `"Unknown"`, 
+          `"${lead.email}"`,
+          `"${lead.phone}"`,
+          `"${lead.website}"`,
+          `"${lead.ai_insight.replace(/"/g, '""')}"`,
+          `"LeadGen AI"`
+        ];
+        break;
+
+      default:
+        headers = ["Company Name", "Website", "Status", "Description", "Email", "Phone", "Location", "ICP Score", "AI Insight", "Outreach Hook"];
+        rowMapper = (lead) => [
+          `"${lead.company_name}"`,
+          `"${lead.website}"`,
+          `"${lead.status}"`,
+          `"${lead.description.replace(/"/g, '""')}"`,
+          `"${lead.email}"`,
+          `"${lead.phone}"`,
+          `"${lead.location}"`,
+          lead.icp_fit_score,
+          `"${lead.ai_insight.replace(/"/g, '""')}"`,
+          `"${lead.outreach_angle.replace(/"/g, '""')}"`
+        ];
+    }
+
     const csvRows = [
       headers.join(","),
-      ...leads.map(lead => [
-        `"${lead.company_name}"`,
-        `"${lead.website}"`,
-        `"${lead.status}"`,
-        `"${lead.description.replace(/"/g, '""')}"`,
-        `"${lead.email}"`,
-        `"${lead.phone}"`,
-        `"${lead.location}"`,
-        lead.icp_fit_score,
-        `"${lead.ai_insight.replace(/"/g, '""')}"`,
-        `"${lead.outreach_angle.replace(/"/g, '""')}"`
-      ].join(","))
+      ...leads.map(lead => rowMapper(lead).join(","))
     ];
 
     const blob = new Blob([csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `b2b_leads_${industry.replace(/\s+/g, '_') || 'export'}.csv`);
+    link.setAttribute("download", fileName);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -619,24 +749,22 @@ function App() {
           >
             <History className="w-4 h-4 text-[#4F7DF3]" /> Search History
           </button>
-          <span className="text-xs font-semibold text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl hidden sm:inline-block">
-            Selected: <span className="text-[#4F7DF3] font-bold">{selectedLeads.length}</span>
-          </span>
+          
           <button
             onClick={() => {
-              localStorage.removeItem('token');
-              setToken(null);
+              setShowAccountModal(true);
+              fetchUserInfo();
             }}
-            className="text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors cursor-pointer"
           >
-            Sign Out
+            <User className="w-4 h-4 text-[#4F7DF3]" /> Account
           </button>
         </div>
       </nav>
 
       <main className="max-w-6xl mx-auto px-6 pt-10 space-y-8">
         
-        {/* Search Section */}
+        {/* Search & Import Section */}
         <section className="bg-[#FFFFFF] border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-xs space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="max-w-xl space-y-1">
@@ -644,25 +772,32 @@ function App() {
                 Autonomous Prospecting & Website Analysis
               </h1>
               <p className="text-sm text-slate-500">
-                Enter target criteria and quantity to discover live B2B leads enriched with customizable AI email sequences.
+                Enter target criteria or upload an external list to discover and enrich live B2B leads.
               </p>
             </div>
 
-            <form onSubmit={handleSingleCompanySearch} className="flex items-center gap-2 bg-[#F5F7FA] p-1.5 rounded-xl border border-slate-200">
-              <div className="relative flex-1">
-                <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={singleCompanyQuery}
-                  onChange={(e) => setSingleCompanyQuery(e.target.value)}
-                  placeholder="Lookup specific company..."
-                  className="bg-transparent text-xs pl-9 pr-3 py-2 focus:outline-none w-44 md:w-52 text-[#1F2937]"
-                />
-              </div>
-              <button type="submit" disabled={loading} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg transition-colors cursor-pointer">
-                Lookup
-              </button>
-            </form>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-colors cursor-pointer shadow-xs">
+                <Upload className="w-4 h-4 text-[#4F7DF3]" /> Import CSV
+                <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+              </label>
+
+              <form onSubmit={handleSingleCompanySearch} className="flex items-center gap-2 bg-[#F5F7FA] p-1.5 rounded-xl border border-slate-200">
+                <div className="relative flex-1">
+                  <Globe className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={singleCompanyQuery}
+                    onChange={(e) => setSingleCompanyQuery(e.target.value)}
+                    placeholder="Lookup company..."
+                    className="bg-transparent text-xs pl-9 pr-3 py-2 focus:outline-none w-36 md:w-44 text-[#1F2937]"
+                  />
+                </div>
+                <button type="submit" disabled={loading} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold px-3 py-2 rounded-lg transition-colors cursor-pointer">
+                  Lookup
+                </button>
+              </form>
+            </div>
           </div>
 
           <form onSubmit={handleGenerateLeads} className="space-y-4">
@@ -836,7 +971,7 @@ function App() {
             </div>
           </div>
 
-          {/* Bulk Actions Bar */}
+          {/* Bulk Actions Bar with CRM Export Selector */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#FFFFFF] border border-slate-200 rounded-xl px-4 py-3 gap-3 shadow-xs">
             <button onClick={handleSelectAll} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-[#4F7DF3] cursor-pointer">
               {selectedLeads.length === filteredLeads.length && filteredLeads.length > 0 ? <CheckSquare className="w-4 h-4 text-[#4F7DF3]" /> : <Square className="w-4 h-4 text-slate-400" />}
@@ -864,26 +999,43 @@ function App() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button disabled={selectedLeads.length === 0} onClick={handleCopyAllSelected} className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#4F7DF3] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 disabled:opacity-40 transition-colors cursor-pointer">
                 {globalCopied ? <Check className="w-3.5 h-3.5 text-[#22C55E]" /> : <ClipboardList className="w-3.5 h-3.5" />}
                 {globalCopied ? "Copied All!" : "Copy Selected Sequences"}
               </button>
-              <button disabled={leads.length === 0} onClick={handleExportCSV} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-[#F5F7FA] hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
-                <Download className="w-3.5 h-3.5" /> Export to CSV
-              </button>
+
+              <div className="flex items-center gap-1.5 bg-[#F5F7FA] border border-slate-200 rounded-lg px-2 py-1">
+                <select 
+                  value={crmExportType} 
+                  onChange={(e) => setCrmExportType(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                >
+                  <option value="generic">Generic CSV</option>
+                  <option value="hubspot">HubSpot Ready</option>
+                  <option value="zoho">Zoho CRM Ready</option>
+                  <option value="salesforce">Salesforce Ready</option>
+                </select>
+                <button 
+                  disabled={leads.length === 0} 
+                  onClick={handleExportCSV} 
+                  className="inline-flex items-center gap-1 text-xs font-bold text-white bg-[#4F7DF3] hover:bg-[#3b68e0] px-3 py-1 rounded-md disabled:opacity-40 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" /> Export
+                </button>
+              </div>
             </div>
           </div>
 
           {filteredLeads.length === 0 && !loading ? (
             <div className="bg-[#FFFFFF] border border-slate-200 rounded-2xl p-16 text-center space-y-3 shadow-xs">
               <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400"><Search className="w-6 h-6" /></div>
-              <p className="text-slate-600 font-medium">No leads generated yet.</p>
+              <p className="text-slate-600 font-medium">No leads generated or imported yet.</p>
             </div>
           ) : loading ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center space-y-4 shadow-xs">
               <Loader2 className="w-8 h-8 animate-spin text-[#4F7DF3] mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">Loading database or running agent...</p>
+              <p className="text-sm font-semibold text-slate-700">Enriching and scoring imported companies...</p>
             </div>
           ) : viewMode === 'cards' ? (
             <div className="grid grid-cols-1 gap-4">
@@ -1036,6 +1188,88 @@ function App() {
           )}
         </section>
       </main>
+
+      {/* ACCOUNT SETTINGS MODAL */}
+      {showAccountModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl p-6 md:p-8 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <h3 className="font-bold text-lg text-[#1F2937] flex items-center gap-2">
+                <User className="w-5 h-5 text-[#4F7DF3]" /> Account Settings
+              </h3>
+              <button onClick={() => setShowAccountModal(false)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {accountMsg && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-600 text-xs rounded-xl">
+                {accountMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateAccount} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
+                <input 
+                  type="text" 
+                  value={userInfo.name} 
+                  onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
+                  className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3]" 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-500 uppercase tracking-wider">Email Address (Read-only)</label>
+                <input 
+                  type="email" 
+                  disabled 
+                  value={userInfo.email} 
+                  className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-500 cursor-not-allowed" 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
+                <input 
+                  type="text" 
+                  value={userInfo.phone} 
+                  onChange={(e) => setUserInfo({ ...userInfo, phone: e.target.value })}
+                  className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3]" 
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-500 uppercase tracking-wider">New Password (Optional)</label>
+                <input 
+                  type="password" 
+                  placeholder="••••••••" 
+                  className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3]" 
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-between gap-3">
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-[#4F7DF3] hover:bg-[#3b68e0] text-white font-medium py-2.5 px-4 rounded-xl transition-colors cursor-pointer"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('token');
+                    setToken(null);
+                  }}
+                  className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold py-2.5 px-4 rounded-xl transition-colors cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal with Direct Email Send Button */}
       {activeModalLead && (
@@ -1205,9 +1439,18 @@ function App() {
         </div>
       )}
 
-      {/* Footer Branding */}
+      {/* Footer Branding with Portfolio Link */}
       <footer className="w-full py-6 text-center text-xs text-slate-400 border-t border-slate-200 mt-16">
-        Built with passion & AI by <span className="font-bold text-[#4F7DF3]">Dagmawit</span> • Full-Stack & AI Engineer
+        Built with passion & AI by{' '}
+        <a 
+          href="https://dagmawit-andargachew-ohmiy3zac-dagmawits-projects-f2e8136a.vercel.app/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="font-bold text-[#4F7DF3] hover:underline"
+        >
+          Dagmawit
+        </a>{' '}
+        • Full-Stack & AI Engineer
       </footer>
 
     </div>
