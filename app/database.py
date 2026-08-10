@@ -9,6 +9,16 @@ engine = create_engine(f"sqlite:///{DB_FILE}", connect_args={"check_same_thread"
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    phone = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class SearchSession(Base):
     __tablename__ = "search_sessions"
     

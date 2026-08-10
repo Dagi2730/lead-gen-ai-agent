@@ -1,14 +1,20 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from app.schemas import LeadGenRequest, LeadGenResponse
 from app.agent import LeadGenAgent
-from app.database import SessionLocal, init_db, SearchSession, DBLead
+from app.database import SessionLocal, init_db, SearchSession, DBLead, User
+from app.auth import get_password_hash, verify_password, create_access_token, get_current_user
+from fastapi.responses import StreamingResponse
 import os
 import httpx
 import asyncio
 import random
+import io
+import csv
+import traceback
 
 # Initialize Database on Startup
 init_db()
@@ -36,6 +42,72 @@ def get_db():
     finally:
         db.close()
 
+# --- AUTHENTICATION SCHEMAS & ROUTES ---
+
+class UserCreate(BaseModel):
+    name: str
+    email: EmailStr
+    phone: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+@app.post("/signup", response_model=Token)
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    try:
+        existing_user = db.query(User).filter(User.email == user.email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email already registered"
+            )
+        
+        hashed_password = get_password_hash(user.password)
+        new_user = User(
+            name=user.name,
+            email=user.email,
+            phone=user.phone,
+            hashed_password=hashed_password
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        access_token = create_access_token(data={"sub": new_user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
+    except Exception as e:
+        db.rollback()
+        print("SIGNUP ERROR TRACEBACK:")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/token", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token = create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/users/me")
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return {
+        "name": current_user.name,
+        "email": current_user.email,
+        "phone": current_user.phone,
+        "created_at": current_user.created_at
+    }
+
+
+# --- LEAD GEN & CRM ROUTES ---
+
 class HubSpotPushRequest(BaseModel):
     company_name: str
     website: str
@@ -45,7 +117,7 @@ class HubSpotPushRequest(BaseModel):
     icp_fit_score: float
 
 @app.post("/api/v1/push-to-hubspot")
-async def push_to_hubspot(payload: HubSpotPushRequest):
+async def push_to_hubspot(payload: HubSpotPushRequest, current_user: User = Depends(get_current_user)):
     hubspot_token = os.getenv("HUBSPOT_ACCESS_TOKEN")
     if not hubspot_token:
         return {"status": "success", "message": f"Successfully simulated push for {payload.company_name} to HubSpot CRM!"}
@@ -62,7 +134,7 @@ async def push_to_hubspot(payload: HubSpotPushRequest):
             "email": payload.email,
             "phone": payload.phone,
             "city": payload.location,
-            "notes": f"ICP Fit Score: {payload.icp_fit_score}/10 generated via LeadGen AI."
+            "notes": f"ICP Fit Score: {payload.icp_fit_score}/10 generated via LeadGen AI by {current_user.email}."
         }
     }
     
@@ -74,7 +146,7 @@ async def push_to_hubspot(payload: HubSpotPushRequest):
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
 @app.post("/api/v1/generate-leads", response_model=LeadGenResponse)
-async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db)):
+async def generate_leads(payload: LeadGenRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         result = await agent.run_pipeline(
             industry=payload.industry,
@@ -119,18 +191,16 @@ class RegenerateHookRequest(BaseModel):
     location: str
 
 @app.post("/api/v1/regenerate-hook")
-async def regenerate_hook(payload: RegenerateHookRequest):
+async def regenerate_hook(payload: RegenerateHookRequest, current_user: User = Depends(get_current_user)):
     try:
         prompt = f"""
         You are an elite B2B Growth Expert. Provide a brand-new, highly creative, and personalized cold outreach hook/angle for the company '{payload.company_name}' ({payload.website}), which operates in the {payload.industry} sector in {payload.location}. Description: {payload.description}.
         Return only a single short paragraph containing the new outreach hook. Do not include quotes or conversational filler.
         """
-        # Wrap LLM call in a strict 5-second timeout safeguard so it never hangs
         response = await asyncio.wait_for(agent.llm.ainvoke(prompt), timeout=5.0)
         hook_text = response.content if hasattr(response, "content") else str(response)
         return {"status": "success", "new_hook": hook_text.strip()}
     except Exception as e:
-        # Instant fallback hook generator so it always returns instantly without hanging
         fallback_hooks = [
             f"Noticed {payload.company_name} is expanding its footprint in {payload.location}—we have a proven playbook to scale your {payload.industry} inbound conversion rate.",
             f"Reviewed your digital workflow at {payload.website} and identified a key friction point in your prospect acquisition funnel tailored for {payload.location} markets.",
@@ -139,7 +209,7 @@ async def regenerate_hook(payload: RegenerateHookRequest):
         return {"status": "success", "new_hook": random.choice(fallback_hooks)}
 
 @app.get("/api/v1/history")
-def get_search_history(db: Session = Depends(get_db)):
+def get_search_history(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     sessions = db.query(SearchSession).order_by(SearchSession.created_at.desc()).all()
     history = []
     for s in sessions:
@@ -154,7 +224,7 @@ def get_search_history(db: Session = Depends(get_db)):
     return history
 
 @app.get("/api/v1/history/{session_id}", response_model=LeadGenResponse)
-def get_session_leads(session_id: int, db: Session = Depends(get_db)):
+def get_session_leads(session_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_session = db.query(SearchSession).filter(SearchSession.id == session_id).first()
     if not db_session:
         raise HTTPException(status_code=404, detail="Search session not found")
@@ -179,7 +249,7 @@ def get_session_leads(session_id: int, db: Session = Depends(get_db)):
     }
 
 @app.delete("/api/v1/history/{session_id}")
-def delete_search_session(session_id: int, db: Session = Depends(get_db)):
+def delete_search_session(session_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     db_session = db.query(SearchSession).filter(SearchSession.id == session_id).first()
     if not db_session:
         raise HTTPException(status_code=404, detail="Search session not found")
@@ -187,6 +257,33 @@ def delete_search_session(session_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "success", "message": f"Session {session_id} deleted successfully"}
 
+@app.get("/api/v1/history/{session_id}/export")
+def export_session_leads_csv(session_id: int, crm_format: str = "generic", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_session = db.query(SearchSession).filter(SearchSession.id == session_id).first()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Search session not found")
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    if crm_format.lower() == "hubspot":
+        writer.writerow(["Company Name", "Website", "Primary Email", "Phone Number", "City", "Annual Revenue", "Message"])
+        for l in db_session.leads:
+            writer.writerow([l.company_name, l.website, l.email, l.phone, db_session.location, f"ICP Fit: {l.icp_fit_score}/10", l.outreach_angle])
+    elif crm_format.lower() == "salesforce":
+        writer.writerow(["Company", "Website", "Email", "Phone", "Billing City", "Description", "Lead Source"])
+        for l in db_session.leads:
+            writer.writerow([l.company_name, l.website, l.email, l.phone, db_session.location, l.description, "LeadGen AI Agent"])
+    else:
+        writer.writerow(["Company", "Website", "Email", "Phone", "Location", "ICP Score", "AI Insight", "Outreach Hook"])
+        for l in db_session.leads:
+            writer.writerow([l.company_name, l.website, l.email, l.phone, db_session.location, l.icp_fit_score, l.ai_insight, l.outreach_angle])
+            
+    output.seek(0)
+    response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv")
+    response.headers["Content-Disposition"] = f"attachment; filename=leads_session_{session_id}_{crm_format}.csv"
+    return response
+
 @app.get("/")
 def health_check():
-    return {"status": "healthy", "service": "Lead Gen Agent API is running with SQLite Database"}
+    return {"status": "healthy", "service": "Lead Gen Agent API is running with SQLite Database & Auth"}

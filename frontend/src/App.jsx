@@ -1,14 +1,165 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, Building2, ExternalLink, Sparkles, Loader2, Target, 
   SlidersHorizontal, CheckSquare, Square, Download, Copy, Check, 
   LayoutGrid, Table as TableIcon, ArrowUpDown, X, ChevronRight, MapPin, 
-  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send
+  Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send, User
 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://lead-gen-ai-agent-2.onrender.com';
+const API_BASE_URL = 'http://127.0.0.1:8000';
+
+function Auth({ onLoginSuccess }) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const endpoint = isLogin ? `${API_BASE_URL}/token` : `${API_BASE_URL}/signup`;
+    
+    try {
+      let response;
+      if (isLogin) {
+        const formData = new URLSearchParams();
+        formData.append('username', email);
+        formData.append('password', password);
+
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData,
+        });
+      } else {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, phone, password }),
+        });
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Authentication failed');
+      }
+
+      localStorage.setItem('token', data.access_token);
+      onLoginSuccess(data.access_token);
+    } catch (err) {
+      console.error("Auth Exception:", err);
+      setError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F5F7FA] px-4 font-sans">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-200">
+        <div className="text-center mb-8 space-y-2">
+          <div className="w-12 h-12 rounded-xl bg-[#4F7DF3] flex items-center justify-center text-white mx-auto shadow-sm">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-[#1F2937]">LeadGen AI</h2>
+          <p className="text-xs text-slate-500 font-medium">
+            {isLogin ? 'Sign in to your account to continue prospecting' : 'Register a new account to start prospecting'}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs rounded-xl">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Full Name</label>
+                <input
+                  type="text"
+                  required={!isLogin}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  required={!isLogin}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
+                  placeholder="+1 (555) 000-0000"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
+              placeholder="you@company.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Password</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-[#F5F7FA] border border-slate-200 rounded-xl px-4 py-3 text-sm text-[#1F2937] focus:outline-none focus:border-[#4F7DF3] focus:bg-white transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 bg-[#4F7DF3] hover:bg-[#3b68e0] text-white font-medium text-sm rounded-xl transition duration-200 shadow-sm cursor-pointer disabled:opacity-50"
+          >
+            {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError('');
+            }}
+            className="text-xs text-[#4F7DF3] hover:underline font-semibold cursor-pointer"
+          >
+            {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [industry, setIndustry] = useState('');
   const [location, setLocation] = useState('');
   const [maxResults, setMaxResults] = useState(25);
@@ -35,6 +186,15 @@ function App() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [leads, setLeads] = useState([]);
+
+  if (!token) {
+    return <Auth onLoginSuccess={(newToken) => setToken(newToken)} />;
+  }
+
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  });
 
   const generateSequenceForTone = (lead, tone) => {
     if (tone === 'Aggressive & Direct') {
@@ -67,7 +227,9 @@ function App() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/history`);
+      const response = await fetch(`${API_BASE_URL}/api/v1/history`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         setHistoryList(data);
@@ -84,6 +246,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/history/${sessionId}`, {
         method: 'DELETE',
+        headers: getAuthHeaders()
       });
       if (response.ok) {
         setHistoryList(prev => prev.filter(item => item.session_id !== sessionId));
@@ -97,7 +260,9 @@ function App() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/history/${sessionId}`);
+      const response = await fetch(`${API_BASE_URL}/api/v1/history/${sessionId}`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) throw new Error("Failed to load session leads");
       
       const data = await response.json();
@@ -145,7 +310,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/regenerate-hook`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           company_name: lead.company_name,
           website: lead.website,
@@ -215,7 +380,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/generate-leads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           industry: singleCompanyQuery,
           location: location || "Global / Online",
@@ -267,7 +432,7 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/generate-leads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           industry,
           location,
@@ -435,9 +600,18 @@ function App() {
           >
             <History className="w-4 h-4 text-[#4F7DF3]" /> Search History
           </button>
-          <span className="text-xs font-semibold text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+          <span className="text-xs font-semibold text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl hidden sm:inline-block">
             Selected: <span className="text-[#4F7DF3] font-bold">{selectedLeads.length}</span>
           </span>
+          <button
+            onClick={() => {
+              localStorage.removeItem('token');
+              setToken(null);
+            }}
+            className="text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl transition-colors cursor-pointer"
+          >
+            Sign Out
+          </button>
         </div>
       </nav>
 
@@ -1011,6 +1185,11 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Footer Branding */}
+      <footer className="w-full py-6 text-center text-xs text-slate-400 border-t border-slate-200 mt-16">
+        Built with passion & AI by <span className="font-bold text-[#4F7DF3]">Dagmawit</span> • Full-Stack & AI Engineer
+      </footer>
 
     </div>
   );

@@ -1,5 +1,28 @@
 from pydantic import BaseModel, Field
 from typing import List
+from pydantic import BaseModel, EmailStr
+from typing import List, Optional
+
+class LeadGenRequest(BaseModel):
+    industry: str
+    location: str
+    max_results: int = 10
+
+class LeadResponse(BaseModel):
+    company_name: str
+    website: str
+    description: Optional[str] = "N/A"
+    email: Optional[str] = "N/A"
+    phone: Optional[str] = "N/A"
+    icp_fit_score: float
+    qualification_reasoning: str
+    suggested_outreach_angle: str
+    confidence: Optional[str] = "Verified"
+
+class LeadGenResponse(BaseModel):
+    status: str
+    total_leads_analyzed: int
+    leads: List[LeadResponse]
 
 class LeadGenRequest(BaseModel):
     industry: str = Field(..., description="Target industry, e.g., 'SaaS startups'")
