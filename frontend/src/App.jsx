@@ -6,7 +6,10 @@ import {
   Trash2, Mail, Phone, TrendingUp, Award, Layers, MessageSquareText, ClipboardList, History, Clock, Globe, RefreshCw, Tag, ShieldCheck, Sparkle, Send, User, Upload
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+// Automatically use localhost for development and your live Render URL for production
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://127.0.0.1:8000'
+  : 'https://lead-gen-ai-agent-2.onrender.com';
 
 function Auth({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
