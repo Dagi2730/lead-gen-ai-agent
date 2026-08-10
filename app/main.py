@@ -64,7 +64,11 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
                 detail="Email already registered"
             )
         
-        hashed_password = get_password_hash(user.password)
+        # BULLETPROOF FIX: We slice the password down to 72 characters right here
+        # before it ever gets sent to the bcrypt library.
+        safe_password = user.password[:72]
+        hashed_password = get_password_hash(safe_password)
+        
         new_user = User(
             name=user.name,
             email=user.email,
@@ -86,7 +90,11 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 @app.post("/token", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    
+    # Slice the password to 72 characters here as well for login verification
+    safe_password = form_data.password[:72]
+    
+    if not user or not verify_password(safe_password, user.hashed_password):
         raise HTTPException(
             status_code=401,
             detail="Incorrect email or password",

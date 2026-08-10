@@ -16,16 +16,12 @@ export default function Auth({ onLoginSuccess }) {
 
     const endpoint = isLogin ? 'http://127.0.0.1:8000/token' : 'http://127.0.0.1:8000/signup';
     
-    // Safety check: Truncate password to 72 chars max to prevent bcrypt 500 server crashes
-    const safePassword = password.slice(0, 72);
-    
     try {
       let response;
       if (isLogin) {
-        // OAuth2PasswordRequestForm expects form-urlencoded data
         const formData = new URLSearchParams();
         formData.append('username', email);
-        formData.append('password', safePassword);
+        formData.append('password', password);
 
         response = await fetch(endpoint, {
           method: 'POST',
@@ -36,7 +32,7 @@ export default function Auth({ onLoginSuccess }) {
         response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, phone, password: safePassword }),
+          body: JSON.stringify({ name, email, phone, password }),
         });
       }
 
@@ -46,7 +42,6 @@ export default function Auth({ onLoginSuccess }) {
         throw new Error(data.detail || 'Authentication failed');
       }
 
-      // Save token and notify parent component
       localStorage.setItem('token', data.access_token);
       onLoginSuccess(data.access_token);
     } catch (err) {

@@ -15,11 +15,13 @@ function Auth({ onLoginSuccess }) {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     setLoading(true);
 
     const endpoint = isLogin ? `${API_BASE_URL}/token` : `${API_BASE_URL}/signup`;
@@ -50,8 +52,18 @@ function Auth({ onLoginSuccess }) {
         throw new Error(data.detail || 'Authentication failed');
       }
 
-      localStorage.setItem('token', data.access_token);
-      onLoginSuccess(data.access_token);
+      if (isLogin) {
+        // If it's a login, save token and go to dashboard
+        localStorage.setItem('token', data.access_token);
+        onLoginSuccess(data.access_token);
+      } else {
+        // If it's a signup, DO NOT log in automatically. 
+        // Switch to the login screen and show a success message.
+        setIsLogin(true);
+        setSuccessMsg('Account created successfully! Please sign in to continue.');
+        setPassword(''); // Clear the password field for security
+      }
+
     } catch (err) {
       console.error("Auth Exception:", err);
       setError(err.message || 'An error occurred during authentication.');
@@ -76,6 +88,12 @@ function Auth({ onLoginSuccess }) {
         {error && (
           <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 text-xs rounded-xl">
             {error}
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-600 text-xs rounded-xl">
+            {successMsg}
           </div>
         )}
 
@@ -147,6 +165,7 @@ function Auth({ onLoginSuccess }) {
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
+              setSuccessMsg(''); // Clear success messages when manually swapping tabs
             }}
             className="text-xs text-[#4F7DF3] hover:underline font-semibold cursor-pointer"
           >
