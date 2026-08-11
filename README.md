@@ -48,13 +48,6 @@ lead-gen-ai-agent/
     ├── package.json         # Frontend packages & scripts
     └── vite.config.js       # Vite configuration
 ```
-#Live System Deployments
-
-Frontend Dashboard (Vercel): Access Live App
-
-Backend API (Render): API Health Check
-
-Developer Portfolio: Dagmawit Andargachew
 
 
     
