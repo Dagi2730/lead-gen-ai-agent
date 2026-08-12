@@ -9,7 +9,7 @@ import {
 // Automatically use localhost for development and your live Render URL for production
 const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://127.0.0.1:8000'
-  : 'https://lead-gen-ai-agent-2.onrender.com';
+  : 'https://lead-gen-ai-agent-1.onrender.com';
 
 function Auth({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
