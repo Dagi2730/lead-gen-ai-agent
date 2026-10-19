@@ -61,4 +61,16 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
+    if not getattr(user, 'is_active', True):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled.")
     return user
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)):
+    """Dependency that blocks access unless the user's role is 'admin'."""
+    if getattr(current_user, 'role', 'user') != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient privileges — admin access required."
+        )
+    return current_user
