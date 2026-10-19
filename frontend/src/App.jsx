@@ -159,16 +159,23 @@ export default function App() {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      // 1. Fetch current user (includes role)
-      const userRes = await fetch(`${API_BASE_URL}/api/v1/me`, {
+      // 1. Fetch current user (tries /api/v1/me first, falls back to /users/me for older backend versions)
+      let userRes = await fetch(`${API_BASE_URL}/api/v1/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+
+      if (userRes.status === 404) {
+        userRes = await fetch(`${API_BASE_URL}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
 
       if (!userRes.ok) {
         throw new Error('Session expired');
       }
 
       const userData = await userRes.json();
+      if (!userData.role) userData.role = 'user';
       setUser(userData);
 
       // 2. Fetch workspaces

@@ -163,6 +163,8 @@ def read_users_me(current_user: User = Depends(get_current_user), db: Session = 
         "name": current_user.name,
         "email": current_user.email,
         "phone": current_user.phone,
+        "role": getattr(current_user, "role", "user"),
+        "is_active": getattr(current_user, "is_active", True),
         "current_workspace_id": ws.id,
         "current_workspace_name": ws.name,
         "created_at": current_user.created_at
@@ -1128,15 +1130,20 @@ def nexus_delete_user(
     return {"status": "deleted", "user_id": user_id}
 
 
-# ─── /me endpoint (returns role so frontend can show/hide admin nav) ───────────
+# ─── /me endpoint (returns role and workspace info so frontend can initialize cleanly) ───────────
 @app.get("/api/v1/me")
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    ws = get_or_create_user_workspace(current_user, db)
     return {
-        "id":         current_user.id,
-        "name":       current_user.name or "",
-        "email":      current_user.email,
-        "role":       getattr(current_user, "role", "user"),
-        "is_active":  getattr(current_user, "is_active", True),
+        "id":                   current_user.id,
+        "name":                 current_user.name or "",
+        "email":                current_user.email,
+        "phone":                current_user.phone or "",
+        "role":                 getattr(current_user, "role", "user"),
+        "is_active":            getattr(current_user, "is_active", True),
+        "current_workspace_id": ws.id,
+        "current_workspace_name": ws.name,
+        "created_at":           current_user.created_at,
     }
 
 
