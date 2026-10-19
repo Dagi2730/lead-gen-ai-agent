@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Auth from './Auth';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
@@ -239,7 +239,7 @@ export default function App() {
     return <Auth onLoginSuccess={(newToken) => setToken(newToken)} apiBaseUrl={API_BASE_URL} />;
   }
 
-  // Use HashRouter for robust routing across both local development and static cloud hosting (e.g. Render/Vercel)
+  // HashRouter is now at the top level so useLocation() inside AppLayout works properly
   return (
     <HashRouter>
       <AppLayout
