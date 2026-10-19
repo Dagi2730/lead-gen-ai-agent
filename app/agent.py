@@ -12,13 +12,11 @@ load_dotenv()
 
 class LeadGenAgent:
     def __init__(self):
-        groq_key = os.getenv("GROQ_API_KEY")
-        self.llm = ChatGroq(
-            model="llama-3.3-70b-versatile",
-            temperature=0.3,
-            max_tokens=4000,
-            api_key=groq_key
-        )
+        self.groq_key = os.getenv("GROQ_API_KEY")
+        # Support active Groq models with resilient automatic fallback
+        primary_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+        candidate_models = [primary_model, "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+        self.models = list(dict.fromkeys(candidate_models))
         
     async def _process_batch(
         self,
@@ -40,8 +38,6 @@ class LeadGenAgent:
             print(f"Search warning or timeout on batch {batch_idx}: {str(e)}")
             search_results_raw = f"General industry directory and market intelligence context for {industry} in {location}."
 
-        structured_llm = self.llm.with_structured_output(LeadGenResponse)
-        
         custom_rules_section = ""
         if custom_icp_rules and custom_icp_rules.strip():
             custom_rules_section = f"""
@@ -81,12 +77,26 @@ class LeadGenAgent:
         7. Set confidence to 'Verified'.
         """
         
-        try:
-            result = await asyncio.wait_for(structured_llm.ainvoke(prompt), timeout=16.0)
-            if result and result.leads:
-                return result.leads
-        except Exception as e:
-            print(f"LLM Batch Processing Error (batch {batch_idx}): {str(e)}")
+        last_error = None
+        for model_name in self.models:
+            try:
+                llm = ChatGroq(
+                    model=model_name,
+                    temperature=0.3,
+                    max_tokens=4000,
+                    api_key=self.groq_key
+                )
+                structured_llm = llm.with_structured_output(LeadGenResponse)
+                result = await asyncio.wait_for(structured_llm.ainvoke(prompt), timeout=35.0)
+                if result and result.leads:
+                    return result.leads
+            except Exception as e:
+                last_error = e
+                print(f"Model '{model_name}' failed on batch {batch_idx}: {str(e)}")
+                continue
+
+        if last_error:
+            print(f"All LLM candidate models failed on batch {batch_idx}: {str(last_error)}")
             
         return []
 
